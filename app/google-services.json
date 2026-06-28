@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "968658719857",
+    "project_id": "carz-2f7c8",
+    "storage_bucket": "carz-2f7c8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:968658719857:android:1c556ab89d0ec6002c37d0",
+        "android_client_info": {
+          "package_name": "com.example.carz"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "968658719857-afuhhf2lbdauhngsl4b3cj56dmhu5ua8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.carz",
+            "certificate_hash": "90bfad49e2996cb181e9e394ce75b512fc7976db"
+          }
+        },
+        {
+          "client_id": "968658719857-c52g0mmr113vsa2rsstjr38fup7o2jnc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCtdtJU6l74VFouIyWZbWzvLsIdaj_jwwU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "968658719857-c52g0mmr113vsa2rsstjr38fup7o2jnc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
