@@ -83,10 +83,10 @@ fun HomeTab(
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(170.dp),
+                        .height(180.dp), // Tăng nhẹ chiều cao để phần chữ thoáng hơn
                     contentScale = ContentScale.FillBounds
                 )
-                HomeHeader(name, avatarUrl, timeInfo.greeting)
+                HomeHeader(name, avatarUrl, timeInfo)
             }
 
             Box(modifier = Modifier.offset(y = (-15).dp)) {
@@ -97,7 +97,7 @@ fun HomeTab(
             Box(modifier = Modifier.padding(horizontal = 14.dp)) {
                 ServiceGrid(onServiceSelected)
             }
-            
+
             Spacer(modifier = Modifier.height(12.dp))
             CarzOneBanner()
             Spacer(modifier = Modifier.height(20.dp))
@@ -108,50 +108,69 @@ fun HomeTab(
 }
 
 @Composable
-fun HomeHeader(name: String, avatarUrl: String?, greeting: String) {
+fun HomeHeader(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo) {
+    // Kiểm tra xem có phải buổi tối hoặc đêm không (Ví dụ qua chuỗi greeting hoặc biến cấu hình trong timeInfo của bạn)
+    val isDarkBackground = timeInfo.greeting.contains("tối", ignoreCase = true) ||
+            timeInfo.greeting.contains("đêm", ignoreCase = true)
+
+    // Xác định màu chữ động dựa trên mốc thời gian nền tối hay sáng
+    val titleColor = if (isDarkBackground) Color.White else CarzTextMain
+    val subtitleColor = if (isDarkBackground) Color(0xFFE0E0E0) else CarzTextSecondary
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 32.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
+            .padding(top = 36.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "Chào $name!",
-                fontSize = 19.sp,
+                fontSize = 22.sp, // Tăng kích thước font chữ to hơn, hiện đại hơn
                 fontWeight = FontWeight.Black,
-                color = CarzTextMain
+                color = titleColor, // Áp dụng màu chữ động
+                letterSpacing = 0.5.sp
             )
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = greeting,
-                fontSize = 12.sp,
-                color = CarzTextSecondary,
-                fontWeight = FontWeight.Bold,
-                lineHeight = 16.sp
+                text = timeInfo.greeting,
+                fontSize = 13.sp, // Tăng kích thước chữ phụ
+                color = subtitleColor, // Áp dụng màu chữ động
+                fontWeight = FontWeight.Medium,
+                lineHeight = 18.sp
             )
         }
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // Khung Avatar hình vuông bo góc nhẹ hiện đại (12.dp)
+        val avatarShape = RoundedCornerShape(12.dp)
+
         if (avatarUrl != null) {
             AsyncImage(
                 model = avatarUrl,
                 contentDescription = "Avatar",
                 modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .border(1.5.dp, Color.White, CircleShape),
+                    .size(52.dp)
+                    .clip(avatarShape)
+                    .border(1.5.dp, Color.White, avatarShape),
                 contentScale = ContentScale.Crop
             )
         } else {
             Box(
                 modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
+                    .size(48.dp) // Tăng nhẹ kích thước Box icon mặc định cho cân xứng với hình vuông
+                    .clip(avatarShape)
                     .background(Color.White)
-                    .border(1.dp, CarzBlue, CircleShape),
+                    .border(1.dp, CarzBlue, avatarShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Person, contentDescription = null, tint = CarzBlue, modifier = Modifier.size(26.dp))
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = CarzBlue,
+                    modifier = Modifier.size(28.dp)
+                )
             }
         }
     }
@@ -317,8 +336,8 @@ fun PromotionCard(title: String, rating: String, time: String, imageRes: Int) {
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(1.5f), // Forced uniform aspect ratio (match Food Deal first image)
-                contentScale = ContentScale.Crop // Uniformly fills the frame
+                    .aspectRatio(1.4f),
+                contentScale = ContentScale.Crop
             )
             Column(modifier = Modifier.padding(10.dp)) {
                 Text(
