@@ -17,20 +17,20 @@ import androidx.compose.ui.unit.sp
 import com.example.carz.R
 import java.util.Calendar
 
-// --- Global Theme Constants ---
+// --- KHAI BÁO MÀU SẮC DUY NHẤT TẠI ĐÂY ---
 val CarzBlue = Color(0xFF55B3D9)
 val CarzDark = Color(0xFF121212)
 val CarzTextMain = Color(0xFF1A1A1A)
 val CarzTextSecondary = Color(0xFF424242)
-val CarzLightBlue = Color(0xFFF0F9FF)
-val CarzBgGray = Color(0xFFFBFBFB)
+val CarzLightBlue = Color(0xFFEBF7FC)
+val CarzBgGray = Color(0xFFF7F9FA)
 
-// --- Data Models ---
+// --- DATA MODELS ---
 data class CarzServiceData(val name: String, val iconRes: Int)
 data class PromotionItem(val title: String, val rating: String, val time: String, val imageRes: Int)
 data class TimeBasedInfo(val bgResId: Int, val greeting: String)
 
-// --- Shared Functions ---
+// --- CHức năng lấy thông điệp thời gian ---
 fun getTimeBasedInfo(): TimeBasedInfo {
     val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
     return when (hour) {
@@ -43,7 +43,7 @@ fun getTimeBasedInfo(): TimeBasedInfo {
     }
 }
 
-// --- Shared UI Components ---
+// --- SHARED UI COMPONENTS ---
 @Composable
 fun ServiceGrid(onServiceSelected: (String) -> Unit) {
     val services = listOf(

@@ -51,12 +51,7 @@ fun HomeScreen(
                 .padding(paddingValues)
         ) {
             when (selectedTab) {
-                0 -> HomeTab(
-                    name = userName,
-                    avatarUrl = userAvatarUrl,
-                    timeInfo = timeInfo,
-                    onServiceSelected = onServiceSelected
-                )
+                0 -> HomeTab(name = userName, avatarUrl = userAvatarUrl, timeInfo = timeInfo, onServiceSelected = onServiceSelected)
                 1 -> TabPlaceholder(title = "Hoạt động", subtitle = "Lịch sử đặt chuyến và dịch vụ")
                 2 -> TabPlaceholder(title = "Dịch vụ", subtitle = "Tất cả tiện ích của Carz")
                 3 -> TabPlaceholder(title = "Ưu đãi", subtitle = "Khuyến mãi dành riêng cho bạn")
@@ -67,35 +62,21 @@ fun HomeScreen(
 }
 
 @Composable
-fun HomeTab(
-    name: String,
-    avatarUrl: String?,
-    timeInfo: TimeBasedInfo,
-    onServiceSelected: (String) -> Unit
-) {
+fun HomeTab(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo, onServiceSelected: (String) -> Unit) {
     Box(modifier = Modifier.fillMaxSize().background(CarzBgGray)) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-        ) {
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Box {
                 Image(
                     painter = painterResource(id = timeInfo.bgResId),
                     contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp),
+                    modifier = Modifier.fillMaxWidth().height(180.dp),
                     contentScale = ContentScale.FillBounds
                 )
                 HomeHeader(name, avatarUrl, timeInfo)
             }
 
-            Box(modifier = Modifier.offset(y = (-15).dp)) {
-                SearchSection()
-            }
+            Box(modifier = Modifier.offset(y = (-15).dp)) { SearchSection() }
 
-            // Ánh xạ chính xác tên dịch vụ từ tiếng Việt có dấu sang định danh luồng đi cho xe máy / ô tô
             ServiceGrid(onServiceSelected = { serviceName ->
                 when (serviceName.trim()) {
                     "Xe máy" -> onServiceSelected("bike")
@@ -115,17 +96,13 @@ fun HomeTab(
 
 @Composable
 fun HomeHeader(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo) {
-    val isDarkBackground = timeInfo.greeting.contains("tối", ignoreCase = true) ||
-            timeInfo.greeting.contains("đêm", ignoreCase = true)
+    val isDarkBackground = timeInfo.greeting.contains("tối", ignoreCase = true) || timeInfo.greeting.contains("đêm", ignoreCase = true)
     val titleColor = if (isDarkBackground) Color.White else CarzTextMain
     val subtitleColor = if (isDarkBackground) Color(0xFFE0E0E0) else CarzTextSecondary
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 36.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier.fillMaxWidth().padding(top = 36.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
+        horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(text = "Chào $name!", fontSize = 22.sp, fontWeight = FontWeight.Black, color = titleColor)
@@ -137,21 +114,13 @@ fun HomeHeader(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo) {
         val avatarShape = RoundedCornerShape(12.dp)
         if (avatarUrl != null) {
             AsyncImage(
-                model = avatarUrl,
-                contentDescription = "Avatar",
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(avatarShape)
-                    .border(1.5.dp, Color.White, avatarShape),
+                model = avatarUrl, contentDescription = "Avatar",
+                modifier = Modifier.size(52.dp).clip(avatarShape).border(1.5.dp, Color.White, avatarShape),
                 contentScale = ContentScale.Crop
             )
         } else {
             Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(avatarShape)
-                    .background(Color.White)
-                    .border(1.dp, CarzBlue, avatarShape),
+                modifier = Modifier.size(48.dp).clip(avatarShape).background(Color.White).border(1.dp, CarzBlue, avatarShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Default.Person, contentDescription = null, tint = CarzBlue, modifier = Modifier.size(28.dp))
@@ -163,12 +132,8 @@ fun HomeHeader(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo) {
 @Composable
 fun SearchSection() {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .shadow(10.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black.copy(alpha = 0.05f)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).shadow(10.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black.copy(alpha = 0.05f)),
+        shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -185,7 +150,6 @@ fun SearchSection() {
                 }
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), thickness = 0.5.dp, color = Color(0xFFF5F5F5))
-
             Row(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -234,36 +198,20 @@ fun CarzOneBanner() {
 fun PromotionSection() {
     Column(modifier = Modifier.padding(vertical = 10.dp)) {
         Text(
-            text = "Ưu đãi hot hôm nay",
-            fontWeight = FontWeight.Black,
-            fontSize = 17.sp,
-            color = CarzTextMain,
+            text = "Ưu đãi hot hôm nay", fontWeight = FontWeight.Black, fontSize = 17.sp, color = CarzTextMain,
             modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
         )
-
         PromotionRow(
             title = "Food Deal Discount",
-            items = listOf(
-                PromotionItem("Combo giảm giá 10%", "4.8", "Food Deal", R.drawable.food_deal_discount1),
-                PromotionItem("Combo giảm giá 15%", "4.9", "Hot deal", R.drawable.food_deal_discount2)
-            )
+            items = listOf(PromotionItem("Combo đồ ăn ngon lành", "4.8", "Giảm 15k", R.drawable.food_deal_discount1))
         )
-
-        // Drink Deal Discount
         PromotionRow(
             title = "Drink Deal Discount",
-            items = listOf(
-                PromotionItem("Trà sữa giảm 30%", "4.9", "Trà sữa", R.drawable.food_deal_discount2),
-                PromotionItem("Cà phê mua 1 tặng 1", "5.0", "Ưu đãi", R.drawable.food_deal_discount1)
-            )
+            items = listOf(PromotionItem("Trà sữa/Coffee giảm 30%", "4.9", "Ưu đãi hot", R.drawable.drink_deal_discount1))
         )
-
         PromotionRow(
             title = "Car Booking Discount",
-            items = listOf(
-                PromotionItem("Giảm 20k chuyến xe", "5.0", "Hôm nay", R.drawable.car_booking_discount1),
-                PromotionItem("Giảm 50k chuyến xe", "Mới", "Quà tặng", R.drawable.get_start_goc)
-            )
+            items = listOf(PromotionItem("Giảm ngay 20k đặt xe", "5.0", "Hôm nay", R.drawable.car_booking_discount1))
         )
     }
 }
@@ -273,8 +221,7 @@ fun PromotionRow(title: String, items: List<PromotionItem>) {
     Column(modifier = Modifier.padding(bottom = 16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
         ) {
             Text(text = title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CarzTextMain)
             Text(text = "Xem thêm", color = CarzBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -283,9 +230,7 @@ fun PromotionRow(title: String, items: List<PromotionItem>) {
             modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items.forEach { item ->
-                PromotionCard(item.title, item.rating, item.time, item.imageRes)
-            }
+            items.forEach { item -> PromotionCard(item.title, item.rating, item.time, item.imageRes) }
         }
     }
 }
@@ -293,17 +238,13 @@ fun PromotionRow(title: String, items: List<PromotionItem>) {
 @Composable
 fun PromotionCard(title: String, rating: String, time: String, imageRes: Int) {
     Card(
-        modifier = Modifier.width(160.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(3.dp)
+        modifier = Modifier.width(160.dp), shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(3.dp)
     ) {
         Column {
             Image(
-                painter = painterResource(id = imageRes),
-                contentDescription = null,
-                modifier = Modifier.fillMaxWidth().aspectRatio(1.4f),
-                contentScale = ContentScale.Crop
+                painter = painterResource(id = imageRes), contentDescription = null,
+                modifier = Modifier.fillMaxWidth().aspectRatio(1.4f), contentScale = ContentScale.Crop
             )
             Column(modifier = Modifier.padding(10.dp)) {
                 Text(text = title, fontWeight = FontWeight.Black, maxLines = 1, fontSize = 12.sp, color = CarzTextMain)
@@ -337,20 +278,13 @@ fun CarzBottomNavigation(selectedTab: Int, onTabSelected: (Int) -> Unit) {
     }
 }
 
-// Bổ sung màn hình Tài khoản phụ để tránh lỗi thiếu Component khi nhấn vào Tab 4
 @Composable
 fun HomeAccountScreen(userName: String, userAvatarUrl: String?, onLogout: () -> Unit) {
-    Box(
-        modifier = Modifier.fillMaxSize().background(CarzBgGray),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(modifier = Modifier.fillMaxSize().background(CarzBgGray), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(20.dp)) {
             val avatarShape = RoundedCornerShape(16.dp)
             if (userAvatarUrl != null) {
-                AsyncImage(
-                    model = userAvatarUrl, contentDescription = null,
-                    modifier = Modifier.size(80.dp).clip(avatarShape), contentScale = ContentScale.Crop
-                )
+                AsyncImage(model = userAvatarUrl, contentDescription = null, modifier = Modifier.size(80.dp).clip(avatarShape), contentScale = ContentScale.Crop)
             } else {
                 Box(modifier = Modifier.size(80.dp).clip(avatarShape).background(Color.White).border(1.dp, CarzBlue, avatarShape), contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.Person, contentDescription = null, tint = CarzBlue, modifier = Modifier.size(40.dp))
@@ -359,10 +293,7 @@ fun HomeAccountScreen(userName: String, userAvatarUrl: String?, onLogout: () -> 
             Spacer(modifier = Modifier.height(12.dp))
             Text(text = userName, fontSize = 18.sp, fontWeight = FontWeight.Black, color = CarzTextMain)
             Spacer(modifier = Modifier.height(24.dp))
-            Button(
-                onClick = onLogout,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE57373))
-            ) {
+            Button(onClick = onLogout, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE57373))) {
                 Text("Đăng xuất", fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
