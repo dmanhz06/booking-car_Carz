@@ -56,7 +56,6 @@ fun ServiceGrid(onServiceSelected: (String) -> Unit) {
         CarzServiceData("Vay nhanh", R.drawable.loan),
         CarzServiceData("Tất cả", R.drawable.grid_menu)
     )
-    // Added 14dp margin as requested
     Column(modifier = Modifier.padding(horizontal = 14.dp)) {
         services.chunked(4).forEach { rowItems ->
             Row(

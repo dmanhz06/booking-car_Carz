@@ -6,7 +6,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -27,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.carz.R
-import java.util.Calendar
 
 @Composable
 fun HomeScreen(
@@ -53,11 +51,16 @@ fun HomeScreen(
                 .padding(paddingValues)
         ) {
             when (selectedTab) {
-                0 -> HomeTab(userName, userAvatarUrl, timeInfo, onServiceSelected)
-                1 -> ActivityScreen()
-                2 -> ServicesScreen(onServiceSelected)
-                3 -> OffersScreen()
-                4 -> AccountScreen(userName, userAvatarUrl, onLogout)
+                0 -> HomeTab(
+                    name = userName,
+                    avatarUrl = userAvatarUrl,
+                    timeInfo = timeInfo,
+                    onServiceSelected = onServiceSelected
+                )
+                1 -> TabPlaceholder(title = "Hoạt động", subtitle = "Lịch sử đặt xe và giao hàng của bạn")
+                2 -> TabPlaceholder(title = "Dịch vụ", subtitle = "Tất cả các tiện ích Carz cung cấp")
+                3 -> TabPlaceholder(title = "Ưu đãi", subtitle = "Danh sách mã giảm giá dành riêng cho bạn")
+                4 -> AccountScreen(userName = userName, userAvatarUrl = userAvatarUrl, onLogout = onLogout)
             }
         }
     }
@@ -77,26 +80,33 @@ fun HomeTab(
                 .verticalScroll(rememberScrollState())
         ) {
             Box {
-                // Background top
+                // Hiển thị Banner hình nền theo thời gian thực (Sáng, trưa, chiều, tối)
                 Image(
                     painter = painterResource(id = timeInfo.bgResId),
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp), // Tăng nhẹ chiều cao để phần chữ thoáng hơn
+                        .height(180.dp),
                     contentScale = ContentScale.FillBounds
                 )
                 HomeHeader(name, avatarUrl, timeInfo)
             }
 
+            // Thanh tìm kiếm đè lên giữa phần Banner và thân dưới
             Box(modifier = Modifier.offset(y = (-15).dp)) {
                 SearchSection()
             }
 
-            // Added 14.dp horizontal margin as requested
-            Box(modifier = Modifier.padding(horizontal = 14.dp)) {
-                ServiceGrid(onServiceSelected)
-            }
+            // Đã SỬA LỖI CLICK: Ép đúng chuỗi Text từ file HomeComponents.kt sang Route định vị luồng xe
+            ServiceGrid(onServiceSelected = { serviceName ->
+                when (serviceName.trim()) {
+                    "Xe máy" -> onServiceSelected("bike")
+                    "Ô tô" -> onServiceSelected("car")
+                    "Giao đồ ăn" -> onServiceSelected("food")
+                    "Giao hàng" -> onServiceSelected("delivery")
+                    else -> onServiceSelected(serviceName) // Fallback dự phòng tên gốc
+                }
+            })
 
             Spacer(modifier = Modifier.height(12.dp))
             CarzOneBanner()
@@ -109,11 +119,9 @@ fun HomeTab(
 
 @Composable
 fun HomeHeader(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo) {
-    // Kiểm tra xem có phải buổi tối hoặc đêm không (Ví dụ qua chuỗi greeting hoặc biến cấu hình trong timeInfo của bạn)
     val isDarkBackground = timeInfo.greeting.contains("tối", ignoreCase = true) ||
             timeInfo.greeting.contains("đêm", ignoreCase = true)
 
-    // Xác định màu chữ động dựa trên mốc thời gian nền tối hay sáng
     val titleColor = if (isDarkBackground) Color.White else CarzTextMain
     val subtitleColor = if (isDarkBackground) Color(0xFFE0E0E0) else CarzTextSecondary
 
@@ -127,23 +135,22 @@ fun HomeHeader(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "Chào $name!",
-                fontSize = 22.sp, // Tăng kích thước font chữ to hơn, hiện đại hơn
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Black,
-                color = titleColor, // Áp dụng màu chữ động
+                color = titleColor,
                 letterSpacing = 0.5.sp
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = timeInfo.greeting,
-                fontSize = 13.sp, // Tăng kích thước chữ phụ
-                color = subtitleColor, // Áp dụng màu chữ động
+                fontSize = 13.sp,
+                color = subtitleColor,
                 fontWeight = FontWeight.Medium,
                 lineHeight = 18.sp
             )
         }
         Spacer(modifier = Modifier.width(12.dp))
 
-        // Khung Avatar hình vuông bo góc nhẹ hiện đại (12.dp)
         val avatarShape = RoundedCornerShape(12.dp)
 
         if (avatarUrl != null) {
@@ -159,7 +166,7 @@ fun HomeHeader(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo) {
         } else {
             Box(
                 modifier = Modifier
-                    .size(48.dp) // Tăng nhẹ kích thước Box icon mặc định cho cân xứng với hình vuông
+                    .size(48.dp)
                     .clip(avatarShape)
                     .background(Color.White)
                     .border(1.dp, CarzBlue, avatarShape),
@@ -244,7 +251,7 @@ fun CarzOneBanner() {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = "carzOne Plus", fontWeight = FontWeight.Black, fontSize = 16.sp, color = CarzBlue)
-                Text(text = "Ưu đãi đặc quyền cho bạn \u279D", fontSize = 11.sp, color = CarzTextSecondary, fontWeight = FontWeight.Bold)
+                Text(text = "Ưu đãi đặc quyền cho bạn ➔", fontSize = 11.sp, color = CarzTextSecondary, fontWeight = FontWeight.Bold)
             }
             Surface(color = Color(0xFFFFF3E0), shape = RoundedCornerShape(10.dp)) {
                 Text(text = "1,250 XU", fontWeight = FontWeight.Black, color = Color(0xFFF57C00), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 12.sp)
@@ -264,7 +271,6 @@ fun PromotionSection() {
             modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
         )
 
-        // 1. Food Deal Discount
         PromotionRow(
             title = "Food Deal Discount",
             items = listOf(
@@ -274,23 +280,12 @@ fun PromotionSection() {
             )
         )
 
-        // 2. Car Booking Discount
         PromotionRow(
             title = "Car Booking Discount",
             items = listOf(
                 PromotionItem("Giảm 20k chuyến xe", "5.0", "Hôm nay", R.drawable.car_booking_discount1),
                 PromotionItem("Giảm 50k chuyến xe", "Mới", "Quà tặng", R.drawable.get_start_goc),
                 PromotionItem("Ưu đãi Carz mới", "4.8", "Tiết kiệm", R.drawable.get_start_goc)
-            )
-        )
-
-        // 3. Drink Deal Discount
-        PromotionRow(
-            title = "Drink Deal Discount",
-            items = listOf(
-                PromotionItem("Combo giảm giá 10%", "4.5", "Giải nhiệt", R.drawable.drink_deal_discount1),
-                PromotionItem("Combo giảm giá 15%", "4.6", "Mua nhiều", R.drawable.drink_deal_discount2),
-                PromotionItem("Combo giảm giá 20%", "4.8", "Ưu đãi lớn", R.drawable.drink_deal_discount3)
             )
         )
     }
@@ -340,29 +335,10 @@ fun PromotionCard(title: String, rating: String, time: String, imageRes: Int) {
                 contentScale = ContentScale.Crop
             )
             Column(modifier = Modifier.padding(10.dp)) {
-                Text(
-                    text = title,
-                    fontWeight = FontWeight.Black,
-                    maxLines = 1,
-                    fontSize = 12.sp,
-                    color = CarzTextMain
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 4.dp)
-                ) {
-                    Icon(
-                        Icons.Default.LocalOffer,
-                        contentDescription = null,
-                        tint = CarzBlue,
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Text(
-                        text = " $rating • $time",
-                        fontSize = 9.sp,
-                        color = CarzTextSecondary,
-                        fontWeight = FontWeight.Bold
-                    )
+                Text(text = title, fontWeight = FontWeight.Black, maxLines = 1, fontSize = 12.sp, color = CarzTextMain)
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                    Icon(Icons.Default.LocalOffer, contentDescription = null, tint = CarzBlue, modifier = Modifier.size(12.dp))
+                    Text(text = " $rating • $time", fontSize = 9.sp, color = CarzTextSecondary, fontWeight = FontWeight.Bold)
                 }
             }
         }

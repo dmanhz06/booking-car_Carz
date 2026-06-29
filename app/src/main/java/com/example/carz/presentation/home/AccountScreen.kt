@@ -25,8 +25,8 @@ import coil.compose.AsyncImage
 
 @Composable
 fun AccountScreen(
-    name: String,
-    avatarUrl: String?,
+    userName: String,               // Đổi tên thành userName để khớp đồng bộ
+    userAvatarUrl: String?,         // Đổi tên thành userAvatarUrl để khớp đồng bộ
     onLogout: () -> Unit
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -66,10 +66,10 @@ fun AccountScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(32.dp))
-        
-        if (avatarUrl != null) {
+
+        if (userAvatarUrl != null) {
             AsyncImage(
-                model = avatarUrl,
+                model = userAvatarUrl,
                 contentDescription = "Avatar",
                 modifier = Modifier
                     .size(80.dp)
@@ -94,16 +94,16 @@ fun AccountScreen(
                 )
             }
         }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         Text(
-            text = name,
+            text = userName,
             fontSize = 22.sp,
             fontWeight = FontWeight.Black,
             color = CarzTextMain
         )
-        
+
         Surface(
             color = Color(0xFFFFF9C4),
             shape = RoundedCornerShape(20.dp),
@@ -132,7 +132,7 @@ fun AccountScreen(
             isLast = true,
             onClick = { showLogoutDialog = true }
         )
-        
+
         Spacer(modifier = Modifier.height(20.dp))
     }
 }

@@ -64,6 +64,10 @@ dependencies {
     // Coil
     implementation(libs.coil.compose)
 
+    // Maps (OpenStreetMap - FREE) -> ĐÃ SỬA LỖI TẠI ĐÂY
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
+    implementation(libs.play.services.location)
+
     // Hilt
     implementation(libs.hilt.android)
     kapt(libs.hilt.android.compiler)
