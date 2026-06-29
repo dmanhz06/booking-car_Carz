@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -201,17 +203,35 @@ fun PromotionSection() {
             text = "Ưu đãi hot hôm nay", fontWeight = FontWeight.Black, fontSize = 17.sp, color = CarzTextMain,
             modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
         )
+
+        // 1. Food Deal Discount (3 ảnh tương ứng mục 1, 2, 3)
         PromotionRow(
             title = "Food Deal Discount",
-            items = listOf(PromotionItem("Combo đồ ăn ngon lành", "4.8", "Giảm 15k", R.drawable.food_deal_discount1))
+            items = listOf(
+                PromotionItem("Combo Gà Rán Giòn Rúm", "4.8", "Giảm 15k", R.drawable.food_deal_discount1),
+                PromotionItem("Pizza Gấp Đôi Phô Mai", "4.7", "Freeship", R.drawable.food_deal_discount2),
+                PromotionItem("Cơm Tấm Sườn Bì Chả", "4.9", "Mua 1 Tặng 1", R.drawable.food_deal_discount3)
+            )
         )
+
+        // 2. Drink Deal Discount (3 ảnh tương ứng mục 1, 2, 3)
         PromotionRow(
             title = "Drink Deal Discount",
-            items = listOf(PromotionItem("Trà sữa/Coffee giảm 30%", "4.9", "Ưu đãi hot", R.drawable.drink_deal_discount1))
+            items = listOf(
+                PromotionItem("Trà Sữa Khoai Môn Kem Cheese", "4.9", "Ưu đãi hot", R.drawable.drink_deal_discount1),
+                PromotionItem("Cà Phê Muối Đậm Vị", "4.6", "Giảm 30%", R.drawable.drink_deal_discount2),
+                PromotionItem("Trà Đào Đột Phá Năng Lượng", "4.8", "Đồng giá 19k", R.drawable.drink_deal_discount3)
+            )
         )
+
+        // 3. Car Booking Discount (1 ảnh car_booking_discount1 và 2 ảnh get_start_goc)
         PromotionRow(
             title = "Car Booking Discount",
-            items = listOf(PromotionItem("Giảm ngay 20k đặt xe", "5.0", "Hôm nay", R.drawable.car_booking_discount1))
+            items = listOf(
+                PromotionItem("Giảm ngay 20k đặt xe", "5.0", "Hôm nay", R.drawable.car_booking_discount1),
+                PromotionItem("Đường xa không lo giá chát", "4.9", "Đặc quyền", R.drawable.get_start_goc),
+                PromotionItem("Trải nghiệm Carz 5 sao", "4.8", "Mã: CARZNEW", R.drawable.get_start_goc)
+            )
         )
     }
 }
@@ -226,11 +246,15 @@ fun PromotionRow(title: String, items: List<PromotionItem>) {
             Text(text = title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CarzTextMain)
             Text(text = "Xem thêm", color = CarzBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp),
+
+        // Sử dụng LazyRow để cuộn mượt và chuyên nghiệp hơn
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items.forEach { item -> PromotionCard(item.title, item.rating, item.time, item.imageRes) }
+            items(items) { item ->
+                PromotionCard(item.title, item.rating, item.time, item.imageRes)
+            }
         }
     }
 }
