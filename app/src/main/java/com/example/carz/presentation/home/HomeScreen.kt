@@ -57,10 +57,10 @@ fun HomeScreen(
                     timeInfo = timeInfo,
                     onServiceSelected = onServiceSelected
                 )
-                1 -> TabPlaceholder(title = "Hoạt động", subtitle = "Lịch sử đặt xe và giao hàng của bạn")
-                2 -> TabPlaceholder(title = "Dịch vụ", subtitle = "Tất cả các tiện ích Carz cung cấp")
-                3 -> TabPlaceholder(title = "Ưu đãi", subtitle = "Danh sách mã giảm giá dành riêng cho bạn")
-                4 -> AccountScreen(userName = userName, userAvatarUrl = userAvatarUrl, onLogout = onLogout)
+                1 -> TabPlaceholder(title = "Hoạt động", subtitle = "Lịch sử đặt chuyến và dịch vụ")
+                2 -> TabPlaceholder(title = "Dịch vụ", subtitle = "Tất cả tiện ích của Carz")
+                3 -> TabPlaceholder(title = "Ưu đãi", subtitle = "Khuyến mãi dành riêng cho bạn")
+                4 -> HomeAccountScreen(userName = userName, userAvatarUrl = userAvatarUrl, onLogout = onLogout)
             }
         }
     }
@@ -80,7 +80,6 @@ fun HomeTab(
                 .verticalScroll(rememberScrollState())
         ) {
             Box {
-                // Hiển thị Banner hình nền theo thời gian thực (Sáng, trưa, chiều, tối)
                 Image(
                     painter = painterResource(id = timeInfo.bgResId),
                     contentDescription = null,
@@ -92,19 +91,16 @@ fun HomeTab(
                 HomeHeader(name, avatarUrl, timeInfo)
             }
 
-            // Thanh tìm kiếm đè lên giữa phần Banner và thân dưới
             Box(modifier = Modifier.offset(y = (-15).dp)) {
                 SearchSection()
             }
 
-            // Đã SỬA LỖI CLICK: Ép đúng chuỗi Text từ file HomeComponents.kt sang Route định vị luồng xe
+            // Ánh xạ chính xác tên dịch vụ từ tiếng Việt có dấu sang định danh luồng đi cho xe máy / ô tô
             ServiceGrid(onServiceSelected = { serviceName ->
                 when (serviceName.trim()) {
                     "Xe máy" -> onServiceSelected("bike")
                     "Ô tô" -> onServiceSelected("car")
-                    "Giao đồ ăn" -> onServiceSelected("food")
-                    "Giao hàng" -> onServiceSelected("delivery")
-                    else -> onServiceSelected(serviceName) // Fallback dự phòng tên gốc
+                    else -> onServiceSelected(serviceName)
                 }
             })
 
@@ -121,7 +117,6 @@ fun HomeTab(
 fun HomeHeader(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo) {
     val isDarkBackground = timeInfo.greeting.contains("tối", ignoreCase = true) ||
             timeInfo.greeting.contains("đêm", ignoreCase = true)
-
     val titleColor = if (isDarkBackground) Color.White else CarzTextMain
     val subtitleColor = if (isDarkBackground) Color(0xFFE0E0E0) else CarzTextSecondary
 
@@ -133,26 +128,13 @@ fun HomeHeader(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Chào $name!",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Black,
-                color = titleColor,
-                letterSpacing = 0.5.sp
-            )
+            Text(text = "Chào $name!", fontSize = 22.sp, fontWeight = FontWeight.Black, color = titleColor)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = timeInfo.greeting,
-                fontSize = 13.sp,
-                color = subtitleColor,
-                fontWeight = FontWeight.Medium,
-                lineHeight = 18.sp
-            )
+            Text(text = timeInfo.greeting, fontSize = 13.sp, color = subtitleColor, fontWeight = FontWeight.Medium)
         }
         Spacer(modifier = Modifier.width(12.dp))
 
         val avatarShape = RoundedCornerShape(12.dp)
-
         if (avatarUrl != null) {
             AsyncImage(
                 model = avatarUrl,
@@ -172,12 +154,7 @@ fun HomeHeader(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo) {
                     .border(1.dp, CarzBlue, avatarShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    tint = CarzBlue,
-                    modifier = Modifier.size(28.dp)
-                )
+                Icon(Icons.Default.Person, contentDescription = null, tint = CarzBlue, modifier = Modifier.size(28.dp))
             }
         }
     }
@@ -199,7 +176,7 @@ fun SearchSection() {
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(text = "Bạn muốn đi tới đâu?", color = CarzTextMain.copy(alpha = 0.7f), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
                 Spacer(modifier = Modifier.weight(1f))
-                Surface(color = CarzLightBlue, shape = RoundedCornerShape(12.dp), onClick = { }) {
+                Surface(color = CarzLightBlue, shape = RoundedCornerShape(12.dp)) {
                     Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Group, contentDescription = null, modifier = Modifier.size(12.dp), tint = CarzBlue)
                         Spacer(modifier = Modifier.width(4.dp))
@@ -210,15 +187,12 @@ fun SearchSection() {
             HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), thickness = 0.5.dp, color = Color(0xFFF5F5F5))
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 QuickDestinationItem("Vinhomes Central Park")
                 QuickDestinationItem("Sân bay Tân Sơn Nhất")
                 QuickDestinationItem("Chợ Bến Thành")
-                QuickDestinationItem("Nhà Thờ Đức Bà")
             }
         }
     }
@@ -226,11 +200,7 @@ fun SearchSection() {
 
 @Composable
 fun QuickDestinationItem(label: String) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = Color(0xFFF8F8F8),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFFEEEEEE))
-    ) {
+    Surface(shape = RoundedCornerShape(16.dp), color = Color(0xFFF8F8F8), border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFFEEEEEE))) {
         Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(11.dp), tint = CarzBlue)
             Spacer(modifier = Modifier.width(5.dp))
@@ -251,7 +221,7 @@ fun CarzOneBanner() {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = "carzOne Plus", fontWeight = FontWeight.Black, fontSize = 16.sp, color = CarzBlue)
-                Text(text = "Ưu đãi đặc quyền cho bạn ➔", fontSize = 11.sp, color = CarzTextSecondary, fontWeight = FontWeight.Bold)
+                Text(text = "Ưu đãi đặc quyền dành cho bạn ➔", fontSize = 11.sp, color = CarzTextSecondary, fontWeight = FontWeight.Bold)
             }
             Surface(color = Color(0xFFFFF3E0), shape = RoundedCornerShape(10.dp)) {
                 Text(text = "1,250 XU", fontWeight = FontWeight.Black, color = Color(0xFFF57C00), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 12.sp)
@@ -275,8 +245,16 @@ fun PromotionSection() {
             title = "Food Deal Discount",
             items = listOf(
                 PromotionItem("Combo giảm giá 10%", "4.8", "Food Deal", R.drawable.food_deal_discount1),
-                PromotionItem("Combo giảm giá 15%", "4.9", "Hot deal", R.drawable.food_deal_discount2),
-                PromotionItem("Combo giảm giá 20%", "4.7", "Bán chạy", R.drawable.food_deal_discount3)
+                PromotionItem("Combo giảm giá 15%", "4.9", "Hot deal", R.drawable.food_deal_discount2)
+            )
+        )
+
+        // Drink Deal Discount
+        PromotionRow(
+            title = "Drink Deal Discount",
+            items = listOf(
+                PromotionItem("Trà sữa giảm 30%", "4.9", "Trà sữa", R.drawable.food_deal_discount2),
+                PromotionItem("Cà phê mua 1 tặng 1", "5.0", "Ưu đãi", R.drawable.food_deal_discount1)
             )
         )
 
@@ -284,8 +262,7 @@ fun PromotionSection() {
             title = "Car Booking Discount",
             items = listOf(
                 PromotionItem("Giảm 20k chuyến xe", "5.0", "Hôm nay", R.drawable.car_booking_discount1),
-                PromotionItem("Giảm 50k chuyến xe", "Mới", "Quà tặng", R.drawable.get_start_goc),
-                PromotionItem("Ưu đãi Carz mới", "4.8", "Tiết kiệm", R.drawable.get_start_goc)
+                PromotionItem("Giảm 50k chuyến xe", "Mới", "Quà tặng", R.drawable.get_start_goc)
             )
         )
     }
@@ -295,9 +272,7 @@ fun PromotionSection() {
 fun PromotionRow(title: String, items: List<PromotionItem>) {
     Column(modifier = Modifier.padding(bottom = 16.dp)) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -305,9 +280,7 @@ fun PromotionRow(title: String, items: List<PromotionItem>) {
             Text(text = "Xem thêm", color = CarzBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
         Row(
-            modifier = Modifier
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
+            modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items.forEach { item ->
@@ -329,9 +302,7 @@ fun PromotionCard(title: String, rating: String, time: String, imageRes: Int) {
             Image(
                 painter = painterResource(id = imageRes),
                 contentDescription = null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1.4f),
+                modifier = Modifier.fillMaxWidth().aspectRatio(1.4f),
                 contentScale = ContentScale.Crop
             )
             Column(modifier = Modifier.padding(10.dp)) {
@@ -362,6 +333,38 @@ fun CarzBottomNavigation(selectedTab: Int, onTabSelected: (Int) -> Unit) {
                 selected = selectedTab == index, onClick = { onTabSelected(index) },
                 colors = NavigationBarItemDefaults.colors(selectedIconColor = CarzBlue, selectedTextColor = CarzBlue, unselectedIconColor = Color(0xFF757575), unselectedTextColor = Color(0xFF757575), indicatorColor = CarzBlue.copy(alpha = 0.1f))
             )
+        }
+    }
+}
+
+// Bổ sung màn hình Tài khoản phụ để tránh lỗi thiếu Component khi nhấn vào Tab 4
+@Composable
+fun HomeAccountScreen(userName: String, userAvatarUrl: String?, onLogout: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize().background(CarzBgGray),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(20.dp)) {
+            val avatarShape = RoundedCornerShape(16.dp)
+            if (userAvatarUrl != null) {
+                AsyncImage(
+                    model = userAvatarUrl, contentDescription = null,
+                    modifier = Modifier.size(80.dp).clip(avatarShape), contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(modifier = Modifier.size(80.dp).clip(avatarShape).background(Color.White).border(1.dp, CarzBlue, avatarShape), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Person, contentDescription = null, tint = CarzBlue, modifier = Modifier.size(40.dp))
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(text = userName, fontSize = 18.sp, fontWeight = FontWeight.Black, color = CarzTextMain)
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = onLogout,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE57373))
+            ) {
+                Text("Đăng xuất", fontWeight = FontWeight.Bold, color = Color.White)
+            }
         }
     }
 }
