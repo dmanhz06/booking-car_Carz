@@ -61,7 +61,7 @@ fun ServiceOptionItem(
             .padding(vertical = 4.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) Color(0xFFFFFDE7) else Color(0xFFF9F9F9), // Màu vàng nhẹ khi chọn giống Be
+        color = if (isSelected) Color(0xFFFFFDE7) else Color(0xFFF9F9F9),
         border = androidx.compose.foundation.BorderStroke(
             width = if (isSelected) 1.5.dp else 0.5.dp,
             color = if (isSelected) Color(0xFFFFD54F) else Color(0xFFE0E0E0)
@@ -139,9 +139,7 @@ fun SearchDestinationScreen(
         Pair("Vinhomes Central Park", "208 Nguyễn Hữu Cảnh, P.22, Q.Bình Thạnh, Hồ Chí Minh"),
         Pair("Nhà Thờ Đức Bà", "Công Xã Paris, P.Bến Nghé, Q.1, Hồ Chí Minh"),
         Pair("Bến Xe Miền Đông Mới", "Xa Lộ Hà Nội, P.Long Bình, TP.Thủ Đức, Hồ Chí Minh"),
-        Pair("Bến Xe Miền Tây", "395 Kinh Dương Vương, P.An Lạc, Q.Bình Tân, Hồ Chí Minh"),
-        Pair("Aeon Mall Tân Phú", "30 Tân Thắng, P.Sơn Kỳ, Q.Tân Phú, Hồ Chí Minh"),
-        Pair("Aeon Mall Bình Tân", "1 Đường 17A, P.Bình Trị Đông B, Q.Bình Tân, Hồ Chí Minh")
+        Pair("Bến Xe Miền Tây", "395 Kinh Dương Vương, P.An Lạc, Q.Bình Tân, Hồ Chí Minh")
     )
 
     if (showGPSDialog) {
@@ -243,7 +241,7 @@ fun SearchDestinationScreen(
     }
 }
 
-// --- SCREEN 2: CHỌN ĐIỂM ĐÓN (ĐÃ SỬA LỖI CHỮ TRUNG QUỐC '面') ---
+// --- SCREEN 2: CHỌN ĐIỂM ĐÓN (ĐÃ THIẾT KẾ ĐÓNG GÓI AN TOÀN CHỐNG VĂNG APP) ---
 @Composable
 fun ConfirmPickupScreen(
     destination: String,
@@ -257,9 +255,10 @@ fun ConfirmPickupScreen(
     var currentLon by remember { mutableDoubleStateOf(106.7533) }
     val geocoder = remember { Geocoder(context, Locale("vi", "VN")) }
 
+    // Phân tách an toàn tránh crash dữ liệu đầu vào
     val extractedDestText = remember(destination) {
         val parts = destination.split("|")
-        if (parts.size > 2) parts[2] else destination
+        if (parts.size > 2) parts[2] else if (parts.size > 1) parts[1] else destination
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -311,7 +310,6 @@ fun ConfirmPickupScreen(
             elevation = CardDefaults.cardElevation(8.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                // ĐÃ FIX: Xóa chữ '面 tốt =' lỗi cú pháp thành 'fontWeight = FontWeight.Bold' chuẩn chỉnh
                 Text(text = "Xác nhận điểm đón chính xác", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF212121))
                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -330,7 +328,7 @@ fun ConfirmPickupScreen(
                     modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF9C4), RoundedCornerShape(8.dp)).padding(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Storefront, contentDescription = null, tint = Color(0xFFA5D6A7))
+                    Icon(Icons.Default.Storefront, contentDescription = null, tint = Color(0xFF81C784))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = centerAddress, fontSize = 13.sp, color = Color.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
@@ -339,8 +337,11 @@ fun ConfirmPickupScreen(
 
                 Button(
                     onClick = {
-                        val finalPickupLabel = if(textInputPickup.isNotBlank()) textInputPickup else centerAddress
-                        onPickupConfirmed("$currentLat,$currentLon|$finalPickupLabel|$extractedDestText")
+                        // SỬA LỖI VĂNG APP: Làm sạch chuỗi, loại bỏ ký tự gạch đứng | phát sinh trong địa chỉ thực tế
+                        val cleanPickupLabel = (if(textInputPickup.isNotBlank()) textInputPickup else centerAddress).replace("|", "-")
+                        val cleanDestLabel = extractedDestText.replace("|", "-")
+
+                        onPickupConfirmed("$currentLat,$currentLon|$cleanPickupLabel|$cleanDestLabel")
                     },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD54F), contentColor = Color.Black),
@@ -353,7 +354,7 @@ fun ConfirmPickupScreen(
     }
 }
 
-// --- SCREEN 3: TỔNG HỢP ĐẶT XE ---
+// --- SCREEN 3: TỔNG HỢP ĐẶT XE (ĐÃ SỬA TOÀN BỘ LOGIC PARSE TRÁNH LỖI INDEX) ---
 @Composable
 fun BookingSummaryScreen(
     vehicleType: String,
@@ -364,33 +365,47 @@ fun BookingSummaryScreen(
 ) {
     var isBookingSuccessShow by remember { mutableStateOf(false) }
 
+    // GIẢI PHÁP CHỐNG CRASH: Trích xuất chuỗi có kiểm tra độ dài mảng (Bounds Checking)
     val pickupParts = pickup.split("|")
-    val pickupLabel = if (pickupParts.size > 1) pickupParts[1] else "Vị trí của bạn"
+    val pickupLabel = if (pickupParts.size > 1) pickupParts[1] else "Vị trí đón của bạn"
     val destLabel = if (pickupParts.size > 2) pickupParts[2] else destination.split("|").last()
 
     val startPoint = remember {
         try {
-            val coords = pickupParts[0].split(",")
-            GeoPoint(coords[0].toDouble(), coords[1].toDouble())
-        } catch(e: Exception) { GeoPoint(10.8456, 106.7533) }
+            if (pickupParts.isNotEmpty()) {
+                val coords = pickupParts[0].split(",")
+                if (coords.size >= 2) {
+                    GeoPoint(coords[0].toDouble(), coords[1].toDouble())
+                } else {
+                    GeoPoint(10.8456, 106.7533)
+                }
+            } else {
+                GeoPoint(10.8456, 106.7533)
+            }
+        } catch(e: Exception) {
+            GeoPoint(10.8456, 106.7533) // Tọa độ cứu cánh mặc định nếu có lỗi
+        }
     }
     val endPoint = GeoPoint(10.7798, 106.6990)
 
     val calculatedKm = remember {
-        val radius = 6371.0
-        val dLat = Math.toRadians(endPoint.latitude - startPoint.latitude)
-        val dLon = Math.toRadians(endPoint.longitude - startPoint.longitude)
-        val a = sin(dLat / 2).pow(2) + cos(Math.toRadians(startPoint.latitude)) * cos(Math.toRadians(endPoint.latitude)) * sin(dLon / 2).pow(2)
-        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-        val dist = radius * c
-        String.format("%.1f", if (dist <= 0.1) 5.2 else dist)
+        try {
+            val radius = 6371.0
+            val dLat = Math.toRadians(endPoint.latitude - startPoint.latitude)
+            val dLon = Math.toRadians(endPoint.longitude - startPoint.longitude)
+            val a = sin(dLat / 2).pow(2) + cos(Math.toRadians(startPoint.latitude)) * cos(Math.toRadians(endPoint.latitude)) * sin(dLon / 2).pow(2)
+            val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+            val dist = radius * c
+            String.format("%.1f", if (dist <= 0.1) 5.2 else dist)
+        } catch (e: Exception) {
+            "4.5"
+        }
     }
 
-    val kmDouble = calculatedKm.toDouble()
+    val kmDouble = calculatedKm.toDoubleOrNull() ?: 4.5
     val priceBike = (kmDouble * 9000).toInt()
     val priceCar = (kmDouble * 18000).toInt()
 
-    // Đồng bộ hóa tên biến State khớp với nhu cầu sử dụng của bạn
     var selectedServiceName by remember { mutableStateOf("beBike") }
     var selectedServicePrice by remember { mutableStateOf(priceBike) }
 
@@ -468,7 +483,6 @@ fun BookingSummaryScreen(
                 Text("Chọn dịch vụ", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // SỬA LỖI: Gom nhóm mượt mà và sửa modifier cuộn dọc chuẩn mẫu Jetpack Compose
                 Column(
                     modifier = Modifier
                         .height(120.dp)
