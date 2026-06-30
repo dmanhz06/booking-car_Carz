@@ -56,6 +56,11 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
 
+    // Room
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    kapt(libs.androidx.room.compiler)
+
     // Firebase
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
@@ -64,7 +69,7 @@ dependencies {
     // Coil
     implementation(libs.coil.compose)
 
-    // Maps (OpenStreetMap - FREE) -> ĐÃ SỬA LỖI TẠI ĐÂY
+    // Maps (OpenStreetMap - FREE)
     implementation("org.osmdroid:osmdroid-android:6.1.18")
     implementation(libs.play.services.location)
 

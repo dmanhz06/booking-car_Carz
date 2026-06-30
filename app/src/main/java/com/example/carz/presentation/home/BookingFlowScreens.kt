@@ -2,13 +2,16 @@ package com.example.carz.presentation.home
 
 import android.location.Geocoder
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -29,12 +32,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.carz.R
+import com.example.carz.data.SearchHistory
+import com.example.carz.data.SearchHistoryDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.osmdroid.events.MapListener
@@ -51,26 +58,10 @@ import java.net.URL
 import java.util.Locale
 import kotlin.math.*
 
-// --- DATA MANAGEMENT ---
-
-// Quản lý lịch sử tìm kiếm (Lưu trong session app)
-object SearchHistoryManager {
-    private val _history = mutableStateListOf<Pair<String, String>>() // Pair(Tên/Query, Địa chỉ chi tiết)
-    val history: List<Pair<String, String>> = _history
-
-    fun add(name: String, address: String) {
-        // Tránh trùng lặp
-        _history.removeAll { it.first.lowercase() == name.lowercase() }
-        _history.add(0, Pair(name, address))
-        // Giới hạn 10 mục gần nhất
-        if (_history.size > 10) _history.removeAt(_history.size - 1)
-    }
-}
-
 // --- UTILITIES & LOGIC ---
 
 /**
- * Tính giá cước (Đã giảm 30% so với gốc):
+ * Tính giá cước (Đã giảm 30%):
  * Phí cơ bản: 8,400đ (2km đầu)
  * Phí mỗi km tiếp theo: 7,000đ
  * Phí thời gian: 3,500đ/phút
@@ -186,6 +177,127 @@ fun ServiceOptionItem(
     }
 }
 
+@Composable
+fun SwipeableHistoryItem(
+    item: SearchHistory,
+    onPin: () -> Unit,
+    onDelete: () -> Unit,
+    onClick: () -> Unit
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val offsetX = remember { Animatable(0f) }
+    val actionWidth = 120.dp
+    val actionWidthPx = with(androidx.compose.ui.platform.LocalDensity.current) { actionWidth.toPx() }
+    
+    // Auto-close after 3.5 seconds when revealed
+    LaunchedEffect(offsetX.value) {
+        if (offsetX.value <= -actionWidthPx) {
+            delay(3500)
+            offsetX.animateTo(0f, tween(300))
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .background(Color.White)
+    ) {
+        // Actions Background (revealed when swiped left)
+        Row(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .width(actionWidth),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Pin/Unpin Action
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(1f)
+                    .background(if (item.isPinned) Color(0xFFFFB74D) else Color(0xFF81C784))
+                    .clickable { 
+                        onPin()
+                        coroutineScope.launch { offsetX.animateTo(0f) }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (item.isPinned) Icons.Default.PushPin else Icons.Default.Favorite,
+                    contentDescription = "Pin",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            // Delete Action
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(1f)
+                    .background(Color(0xFFE57373))
+                    .clickable { 
+                        onDelete()
+                        coroutineScope.launch { offsetX.animateTo(0f) }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+        }
+
+        // Foreground Content
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .fillMaxWidth()
+                .background(Color.White)
+                .clickable { onClick() }
+                .draggable(
+                    orientation = Orientation.Horizontal,
+                    state = rememberDraggableState { delta ->
+                        coroutineScope.launch {
+                            val newOffset = (offsetX.value + delta).coerceIn(-actionWidthPx * 1.5f, 0f)
+                            offsetX.snapTo(newOffset)
+                        }
+                    },
+                    onDragStopped = {
+                        if (offsetX.value < -actionWidthPx / 2) {
+                            offsetX.animateTo(-actionWidthPx, tween(300))
+                        } else {
+                            offsetX.animateTo(0f, tween(300))
+                        }
+                    }
+                )
+                .padding(vertical = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(Color(0xFFF5F5F5), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (item.isPinned) Icons.Default.PushPin else Icons.Default.History,
+                        contentDescription = null,
+                        tint = if (item.isPinned) Color(0xFFFBC02D) else Color.Gray,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(item.name, fontWeight = FontWeight.Bold, color = Color(0xFF212121), fontSize = 14.sp)
+                    Text(item.address, color = Color.Gray, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
 // --- SCREEN 1: NHẬP ĐIỂM ĐẾN ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -195,13 +307,17 @@ fun SearchDestinationScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val db = remember { SearchHistoryDatabase.getDatabase(context) }
+    val history by db.searchHistoryDao().getAllHistory().collectAsState(initial = emptyList())
+    val coroutineScope = rememberCoroutineScope()
+
     val geocoder = remember { Geocoder(context, Locale("vi", "VN")) }
     var startLocationText by remember { mutableStateOf("Vị trí của tôi") }
     var destinationText by remember { mutableStateOf("") }
     var showGPSDialog by remember { mutableStateOf(false) }
     var currentPickupCoords by remember { mutableStateOf("10.8456,106.7533") }
-
-    val history = SearchHistoryManager.history
+    
+    var showDeleteConfirm by remember { mutableStateOf<SearchHistory?>(null) }
 
     if (showGPSDialog) {
         AlertDialog(
@@ -224,6 +340,25 @@ fun SearchDestinationScreen(
         )
     }
 
+    if (showDeleteConfirm != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = null },
+            title = { Text("Xác nhận xóa") },
+            text = { Text("Bạn có chắc chắn muốn xóa địa chỉ này khỏi lịch sử?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    coroutineScope.launch {
+                        showDeleteConfirm?.let { db.searchHistoryDao().delete(it) }
+                        showDeleteConfirm = null
+                    }
+                }) { Text("Xóa", color = Color.Red) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = null }) { Text("Hủy") }
+            }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         TopAppBar(
             title = { Text("Bạn muốn đi đâu?", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
@@ -233,7 +368,7 @@ fun SearchDestinationScreen(
         )
 
         Column(modifier = Modifier.padding(16.dp)) {
-            // Hiển thị điểm đón hiện tại (có thể bấm để GPS)
+            // Điểm đón hiện tại
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -253,7 +388,7 @@ fun SearchDestinationScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Ô nhập điểm đến chính xác với icon tìm kiếm
+            // Nhập điểm đến chính xác
             OutlinedTextField(
                 value = destinationText,
                 onValueChange = { destinationText = it },
@@ -268,7 +403,9 @@ fun SearchDestinationScreen(
                                     if (!addresses.isNullOrEmpty()) {
                                         val addr = addresses[0]
                                         val label = addr.getAddressLine(0) ?: destinationText
-                                        SearchHistoryManager.add(destinationText, label)
+                                        coroutineScope.launch {
+                                            db.searchHistoryDao().insert(SearchHistory(name = destinationText, address = label))
+                                        }
                                         onDestinationConfirmed("$currentPickupCoords|$startLocationText|$label|${addr.latitude},${addr.longitude}")
                                     } else {
                                         Toast.makeText(context, "Không tìm thấy địa chỉ này", Toast.LENGTH_SHORT).show()
@@ -286,39 +423,32 @@ fun SearchDestinationScreen(
             )
 
             Spacer(modifier = Modifier.height(24.dp))
-            Text("Lịch sử tìm kiếm", fontWeight = FontWeight.Bold, color = Color.Gray, fontSize = 14.sp)
+            Text("Lịch sử tìm kiếm (Vuốt trái để xóa/ghim)", fontWeight = FontWeight.Bold, color = Color.Gray, fontSize = 14.sp)
             Spacer(modifier = Modifier.height(8.dp))
 
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 if (history.isEmpty()) {
-                    Text("Chưa có lịch sử tìm kiếm", fontSize = 13.sp, color = Color.LightGray, modifier = Modifier.padding(vertical = 12.dp))
+                    Text("Chưa có lịch sử tìm kiếm", fontSize = 13.sp, color = Color.LightGray, modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp))
                 }
                 history.forEach { item ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { 
-                                // Khi bấm vào lịch sử, xác nhận ngay
-                                try {
-                                    val addresses = geocoder.getFromLocationName(item.first, 1)
-                                    val coords = if (!addresses.isNullOrEmpty()) "${addresses[0].latitude},${addresses[0].longitude}" else "10.7798,106.6990"
-                                    onDestinationConfirmed("$currentPickupCoords|$startLocationText|${item.second}|$coords")
-                                } catch(e: Exception) {
-                                    onDestinationConfirmed("$currentPickupCoords|$startLocationText|${item.second}|10.7798,106.6990")
-                                }
+                    SwipeableHistoryItem(
+                        item = item,
+                        onPin = {
+                            coroutineScope.launch {
+                                db.searchHistoryDao().updatePin(item.id, !item.isPinned)
                             }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(modifier = Modifier.size(36.dp).background(Color(0xFFF5F5F5), CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.History, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(18.dp))
+                        },
+                        onDelete = { showDeleteConfirm = item },
+                        onClick = {
+                            try {
+                                val addresses = geocoder.getFromLocationName(item.name, 1)
+                                val coords = if (!addresses.isNullOrEmpty()) "${addresses[0].latitude},${addresses[0].longitude}" else "10.7798,106.6990"
+                                onDestinationConfirmed("$currentPickupCoords|$startLocationText|${item.address}|$coords")
+                            } catch(e: Exception) {
+                                onDestinationConfirmed("$currentPickupCoords|$startLocationText|${item.address}|10.7798,106.6990")
+                            }
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(item.first, fontWeight = FontWeight.Bold, color = Color(0xFF212121), fontSize = 14.sp)
-                            Text(item.second, color = Color.Gray, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
+                    )
                     HorizontalDivider(color = Color(0xFFEEEEEE))
                 }
             }
@@ -399,7 +529,6 @@ fun ConfirmPickupScreen(
             modifier = Modifier.padding(top = 40.dp, start = 16.dp).background(Color.White, CircleShape)
         ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
 
-        // Nhãn ĐIỂM ĐÓN cố định ở giữa
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Surface(
@@ -423,7 +552,7 @@ fun ConfirmPickupScreen(
                 Text(text = "Xác nhận điểm đón chính xác", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Ô nhập địa chỉ điểm đón chính xác với icon tìm kiếm
+                // Nhập địa chỉ điểm đón chính xác với icon tìm kiếm
                 OutlinedTextField(
                     value = textInputPickup,
                     onValueChange = { textInputPickup = it },
@@ -458,7 +587,6 @@ fun ConfirmPickupScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Hiển thị địa chỉ đang chọn trên Map
                 Row(
                     modifier = Modifier.fillMaxWidth().background(Color(0xFFE3F2FD), RoundedCornerShape(8.dp)).padding(10.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -649,8 +777,9 @@ fun BookingSummaryScreen(
                 }
                 if (!isLoadingRoute) {
                     Spacer(modifier = Modifier.height(4.dp))
+                    val distDisplay = if (calculatedKm < 1.0) "${(calculatedKm * 1000).toInt()} m" else "${String.format(Locale.getDefault(), "%.1f", calculatedKm)} km"
                     Text(
-                        "Lộ trình: ${String.format(Locale.getDefault(), "%,d", (calculatedKm).toInt())} km (~${durationMin.toInt()} phút)",
+                        "Lộ trình: $distDisplay (~${durationMin.toInt()} phút)",
                         fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold
                     )
                 }
