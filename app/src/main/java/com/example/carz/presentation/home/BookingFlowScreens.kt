@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,7 +27,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,7 +58,7 @@ import kotlin.math.*
  * Phí cơ bản: 12,000đ (cho 2km đầu)
  * Phí mỗi km tiếp theo: 10,000đ
  * Phí thời gian: 5,000đ/phút
- * Multiplier: Hệ số nhân (mặc định 1.0)
+ * Multiplier: Mặc định 1.0 (Đã ẩn khỏi UI theo yêu cầu)
  */
 fun calculateBookingFare(distanceKm: Double, durationMin: Double, multiplier: Double = 1.0): Int {
     val baseFare = 12000.0
@@ -79,7 +77,7 @@ fun calculateBookingFare(distanceKm: Double, durationMin: Double, multiplier: Do
 }
 
 /**
- * Fetches real road route from OSRM API
+ * Fetches real road route from OSRM API (Hệ thống đường đi thực tế như Google Maps)
  */
 suspend fun fetchRealRoute(start: GeoPoint, end: GeoPoint): Triple<List<GeoPoint>, Double, Double> {
     return withContext(Dispatchers.IO) {
@@ -89,8 +87,8 @@ suspend fun fetchRealRoute(start: GeoPoint, end: GeoPoint): Triple<List<GeoPoint
             val url = URL(urlStr)
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
-            connection.connectTimeout = 5000
-            connection.readTimeout = 5000
+            connection.connectTimeout = 8000
+            connection.readTimeout = 8000
             
             val response = connection.inputStream.bufferedReader().use { it.readText() }
             val json = JSONObject(response)
@@ -112,9 +110,9 @@ suspend fun fetchRealRoute(start: GeoPoint, end: GeoPoint): Triple<List<GeoPoint
                 throw Exception("No routes found")
             }
         } catch (e: Exception) {
-            // Fallback: Haversine distance and estimated speed
+            // Fallback: Haversine distance
             val dist = start.distanceToAsDouble(end) / 1000.0
-            Triple(listOf(start, end), dist, dist * 2.5) // Assume 24km/h for city fallback
+            Triple(listOf(start, end), dist, dist * 2.5) 
         }
     }
 }
@@ -175,7 +173,7 @@ fun ServiceOptionItem(
                 )
             }
             Text(
-                text = "${String.format("%,d", price)}đ",
+                text = "${String.format(Locale.getDefault(), "%,d", price)}đ",
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp,
                 color = Color(0xFF212121)
@@ -214,7 +212,7 @@ fun SearchDestinationScreen(
 ) {
     val context = LocalContext.current
     val geocoder = remember { Geocoder(context, Locale("vi", "VN")) }
-    var startLocationText by remember { mutableStateOf("Huy Trần Office") }
+    var startLocationText by remember { mutableStateOf("Vị trí của tôi") }
     var destinationText by remember { mutableStateOf("") }
     var showGPSDialog by remember { mutableStateOf(false) }
     var currentPickupCoords by remember { mutableStateOf("10.8456,106.7533") }
@@ -278,7 +276,7 @@ fun SearchDestinationScreen(
             OutlinedTextField(
                 value = destinationText,
                 onValueChange = { destinationText = it },
-                placeholder = { Text("Nhập điểm đến...") },
+                placeholder = { Text("Nhập điểm đến chính xác...") },
                 leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.Red) },
                 trailingIcon = {
                     IconButton(
@@ -287,15 +285,16 @@ fun SearchDestinationScreen(
                                 try {
                                     val addresses = geocoder.getFromLocationName(destinationText, 1)
                                     if (!addresses.isNullOrEmpty()) {
-                                        val lat = addresses[0].latitude
-                                        val lon = addresses[0].longitude
-                                        // Pass coordinates along with labels
-                                        onDestinationConfirmed("$currentPickupCoords|$startLocationText|$destinationText|$lat,$lon")
+                                        val addr = addresses[0]
+                                        val lat = addr.latitude
+                                        val lon = addr.longitude
+                                        val label = addr.getAddressLine(0) ?: destinationText
+                                        onDestinationConfirmed("$currentPickupCoords|$startLocationText|$label|$lat,$lon")
                                     } else {
-                                        Toast.makeText(context, "Không tìm thấy địa chỉ này", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Không tìm thấy địa chỉ chính xác", Toast.LENGTH_SHORT).show()
                                     }
                                 } catch (e: Exception) {
-                                    Toast.makeText(context, "Lỗi tìm kiếm", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Lỗi kết nối tìm kiếm", Toast.LENGTH_SHORT).show()
                                 }
                             } else {
                                 Toast.makeText(context, "Vui lòng nhập điểm đến", Toast.LENGTH_SHORT).show()
@@ -369,16 +368,19 @@ fun ConfirmPickupScreen(
                 MapView(ctx).apply {
                     setTileSource(TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
-                    controller.setZoom(17.0)
+                    controller.setZoom(17.5)
                     controller.setCenter(GeoPoint(10.8456, 106.7533))
 
-                    // Hiển thị marker điểm đến đã chọn (trỏ đúng vào địa điểm đó)
+                    // Marker Điểm Đến (với chữ hiển thị phía trên)
                     destCoords?.let {
                         val marker = Marker(this).apply {
                             position = it
-                            title = "Đến: $extractedDestText"
+                            title = "ĐIỂM ĐẾN"
+                            snippet = extractedDestText
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                         }
                         overlays.add(marker)
+                        marker.showInfoWindow()
                     }
 
                     addMapListener(object : MapListener {
@@ -393,7 +395,7 @@ fun ConfirmPickupScreen(
                                     centerAddress = addresses[0].getAddressLine(0) ?: "Vị trí không xác định"
                                 }
                             } catch (e: Exception) {
-                                centerAddress = "Đang tìm vị trí..."
+                                centerAddress = "Vị trí đang chọn..."
                             }
                             return true
                         }
@@ -409,9 +411,18 @@ fun ConfirmPickupScreen(
             modifier = Modifier.padding(top = 40.dp, start = 16.dp).background(Color.White, CircleShape)
         ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
 
-        // Marker điểm đón ở giữa màn hình
+        // Icon Điểm Đón cố định ở giữa màn hình khi scroll map
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Icon(Icons.Default.MyLocation, contentDescription = null, tint = Color(0xFF2196F3), modifier = Modifier.size(40.dp).offset(y = (-20).dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Surface(
+                    color = Color.Black,
+                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier.padding(bottom = 4.dp)
+                ) {
+                    Text("ĐIỂM ĐÓN", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                }
+                Icon(Icons.Default.MyLocation, contentDescription = null, tint = Color(0xFF2196F3), modifier = Modifier.size(40.dp).offset(y = (-4).dp))
+            }
         }
 
         Card(
@@ -427,7 +438,7 @@ fun ConfirmPickupScreen(
                 OutlinedTextField(
                     value = textInputPickup,
                     onValueChange = { textInputPickup = it },
-                    placeholder = { Text("Nhập số nhà, tên ngõ...") },
+                    placeholder = { Text("Số nhà, tên ngõ...") },
                     leadingIcon = { Icon(Icons.Default.EditLocation, contentDescription = null, tint = Color.Gray) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
@@ -450,7 +461,6 @@ fun ConfirmPickupScreen(
                     onClick = {
                         val cleanPickupLabel = (if(textInputPickup.isNotBlank()) textInputPickup else centerAddress).replace("|", "-")
                         val cleanDestLabel = extractedDestText.replace("|", "-")
-                        // Forward full info
                         val destCoordStr = if (destCoords != null) "${destCoords.latitude},${destCoords.longitude}" else "10.7798,106.6990"
                         onPickupConfirmed("$currentLat,$currentLon|$cleanPickupLabel|$cleanDestLabel|$destCoordStr")
                     },
@@ -465,7 +475,7 @@ fun ConfirmPickupScreen(
     }
 }
 
-// --- SCREEN 3: TỔNG HỢP ĐẶT XE (VỚI TÍNH TOÁN THỰC TẾ) ---
+// --- SCREEN 3: TỔNG HỢP ĐẶT XE (LỘ TRÌNH THỰC TẾ & TÍNH GIÁ) ---
 @Composable
 fun BookingSummaryScreen(
     vehicleType: String,
@@ -475,8 +485,7 @@ fun BookingSummaryScreen(
     onBack: () -> Unit
 ) {
     var isBookingSuccessShow by remember { mutableStateOf(false) }
-    var multiplierText by remember { mutableStateOf("1.0") }
-    val multiplier = multiplierText.toDoubleOrNull() ?: 1.0
+    val multiplier = 1.0 // Multiplier cố định 1.0, đã xóa phần nhập liệu UI
 
     val pickupParts = pickup.split("|")
     val pickupLabel = if (pickupParts.size > 1) pickupParts[1] else "Vị trí đón"
@@ -491,7 +500,6 @@ fun BookingSummaryScreen(
     
     val endPoint = remember {
         try {
-            // Check if destination string or pickupParts[3] contains coords
             val coordStr = if (pickupParts.size > 3) pickupParts[3] else "10.7798,106.6990"
             val coords = coordStr.split(",")
             GeoPoint(coords[0].toDouble(), coords[1].toDouble())
@@ -503,7 +511,6 @@ fun BookingSummaryScreen(
     var durationMin by remember { mutableDoubleStateOf(0.0) }
     var isLoadingRoute by remember { mutableStateOf(true) }
 
-    // Fetch real road route and distance
     LaunchedEffect(startPoint, endPoint) {
         isLoadingRoute = true
         val result = fetchRealRoute(startPoint, endPoint)
@@ -515,13 +522,13 @@ fun BookingSummaryScreen(
 
     // Fare calculation
     val priceBike = calculateBookingFare(calculatedKm, durationMin, multiplier)
-    val priceCar = (calculateBookingFare(calculatedKm, durationMin, multiplier) * 1.6).toInt() // Car is slightly more expensive
+    val priceCar = (calculateBookingFare(calculatedKm, durationMin, multiplier) * 1.8).toInt() 
 
-    var selectedServiceName by remember { mutableStateOf(if(vehicleType == "car") "beCar 4 chỗ" else "beBike") }
+    var selectedServiceName by remember { mutableStateOf(if(vehicleType == "car") "CarzCar" else "CarzBike") }
     var selectedServicePrice by remember { mutableIntStateOf(if(vehicleType == "car") priceCar else priceBike) }
 
-    LaunchedEffect(calculatedKm, durationMin, multiplier, selectedServiceName) {
-        selectedServicePrice = if (selectedServiceName == "beBike") priceBike else priceCar
+    LaunchedEffect(calculatedKm, durationMin, selectedServiceName) {
+        selectedServicePrice = if (selectedServiceName == "CarzBike") priceBike else priceCar
     }
 
     if (isBookingSuccessShow) {
@@ -541,19 +548,23 @@ fun BookingSummaryScreen(
 
                     val markerStart = Marker(this).apply {
                         position = startPoint
-                        title = "Đón: $pickupLabel"
+                        title = "ĐIỂM ĐÓN"
+                        snippet = pickupLabel
                     }
                     val markerEnd = Marker(this).apply {
                         position = endPoint
-                        title = "Đến: $destLabel"
+                        title = "ĐIỂM ĐẾN"
+                        snippet = destLabel
                     }
                     overlays.add(markerStart)
                     overlays.add(markerEnd)
+                    markerStart.showInfoWindow()
+                    markerEnd.showInfoWindow()
 
                     val polyline = Polyline().apply {
                         setPoints(routePoints)
                         outlinePaint.color = android.graphics.Color.parseColor("#FFD54F")
-                        outlinePaint.strokeWidth = 12f
+                        outlinePaint.strokeWidth = 14f
                     }
                     overlays.add(polyline)
 
@@ -572,7 +583,6 @@ fun BookingSummaryScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Top info card
         Card(
             modifier = Modifier.fillMaxWidth().padding(top = 40.dp, start = 14.dp, end = 14.dp),
             shape = RoundedCornerShape(12.dp),
@@ -583,25 +593,24 @@ fun BookingSummaryScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.RadioButtonChecked, contentDescription = null, tint = Color.Green, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text(pickupLabel, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("Đón: $pickupLabel", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.Red, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text(destLabel, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
+                    Text("Đến: $destLabel", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
                 }
                 if (!isLoadingRoute) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Khoảng cách: ${String.format("%.2f", calculatedKm)}km - Ước tính: ${durationMin.toInt()} phút",
-                        fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Medium
+                        "Lộ trình: ${String.format(Locale.getDefault(), "%.2f", calculatedKm)} km (~${durationMin.toInt()} phút)",
+                        fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold
                     )
                 }
             }
         }
 
-        // Bottom selection card
         Card(
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
@@ -609,52 +618,31 @@ fun BookingSummaryScreen(
             elevation = CardDefaults.cardElevation(12.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Chọn dịch vụ", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Multiplier: ", fontSize = 12.sp, color = Color.Gray)
-                        TextField(
-                            value = multiplierText,
-                            onValueChange = { multiplierText = it },
-                            modifier = Modifier.width(60.dp).height(48.dp),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(unfocusedContainerColor = Color.Transparent, focusedContainerColor = Color.Transparent)
-                        )
-                    }
-                }
-                
+                Text("Dịch vụ Carz", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Column(modifier = Modifier.height(120.dp).verticalScroll(rememberScrollState())) {
-                    ServiceOptionItem("beBike", priceBike, selectedServiceName == "beBike", Icons.Default.TwoWheeler) {
-                        selectedServiceName = "beBike"
+                Column(modifier = Modifier.height(130.dp).verticalScroll(rememberScrollState())) {
+                    ServiceOptionItem("CarzBike (Tiết kiệm)", priceBike, selectedServiceName == "CarzBike", Icons.Default.TwoWheeler) {
+                        selectedServiceName = "CarzBike"
                     }
-                    ServiceOptionItem("beCar 4 chỗ", priceCar, selectedServiceName == "beCar 4 chỗ", Icons.Default.DirectionsCar) {
-                        selectedServiceName = "beCar 4 chỗ"
+                    ServiceOptionItem("CarzCar (Thoải mái)", priceCar, selectedServiceName == "CarzCar", Icons.Default.DirectionsCar) {
+                        selectedServiceName = "CarzCar"
                     }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    DiscountHorizontalItem(imgRes = R.drawable.car_booking_discount1, title = "Giảm 15%", modifier = Modifier.weight(1f))
-                    DiscountHorizontalItem(imgRes = R.drawable.food_deal_discount1, title = "Ưu đãi Khủng", modifier = Modifier.weight(1f))
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Button(
                     onClick = { isBookingSuccessShow = true },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD54F), contentColor = Color.Black),
                     shape = RoundedCornerShape(12.dp),
                     enabled = !isLoadingRoute
                 ) {
                     if (isLoadingRoute) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.Black)
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.Black, strokeWidth = 2.dp)
                     } else {
-                        Text("Đặt $selectedServiceName - ${String.format("%,d", selectedServicePrice)}đ", fontWeight = FontWeight.Bold)
+                        Text("Đặt $selectedServiceName - ${String.format(Locale.getDefault(), "%,d", selectedServicePrice)}đ", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                 }
             }
@@ -662,15 +650,15 @@ fun BookingSummaryScreen(
 
         AnimatedVisibility(visible = isBookingSuccessShow, enter = fadeIn(), exit = fadeOut()) {
             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)), contentAlignment = Alignment.Center) {
-                Card(modifier = Modifier.fillMaxWidth(0.82f).padding(16.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Card(modifier = Modifier.fillMaxWidth(0.85f).padding(16.dp), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(48.dp))
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(60.dp))
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text("Đặt Xe Thành Công!", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("Đã Gửi Yêu Cầu!", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Tài xế đang đến đón bạn.", fontSize = 13.sp, color = Color.Gray, textAlign = TextAlign.Center)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        CircularProgressIndicator(color = Color(0xFFFFD54F), strokeWidth = 3.dp, modifier = Modifier.size(24.dp))
+                        Text("Tài xế Carz đang được kết nối với bạn. Vui lòng giữ liên lạc.", fontSize = 14.sp, color = Color.Gray, textAlign = TextAlign.Center)
+                        Spacer(modifier = Modifier.height(20.dp))
+                        CircularProgressIndicator(color = Color(0xFFFFD54F), strokeWidth = 3.dp, modifier = Modifier.size(28.dp))
                     }
                 }
             }
