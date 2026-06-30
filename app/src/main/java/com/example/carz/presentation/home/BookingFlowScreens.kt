@@ -51,11 +51,27 @@ import java.net.URL
 import java.util.Locale
 import kotlin.math.*
 
+// --- DATA MANAGEMENT ---
+
+// Quản lý lịch sử tìm kiếm (Lưu trong session app)
+object SearchHistoryManager {
+    private val _history = mutableStateListOf<Pair<String, String>>() // Pair(Tên/Query, Địa chỉ chi tiết)
+    val history: List<Pair<String, String>> = _history
+
+    fun add(name: String, address: String) {
+        // Tránh trùng lặp
+        _history.removeAll { it.first.lowercase() == name.lowercase() }
+        _history.add(0, Pair(name, address))
+        // Giới hạn 10 mục gần nhất
+        if (_history.size > 10) _history.removeAt(_history.size - 1)
+    }
+}
+
 // --- UTILITIES & LOGIC ---
 
 /**
- * Calculates fare based on the specific formula (Đã giảm 30% so với gốc):
- * Phí cơ bản: 8,400đ (cho 2km đầu)
+ * Tính giá cước (Đã giảm 30% so với gốc):
+ * Phí cơ bản: 8,400đ (2km đầu)
  * Phí mỗi km tiếp theo: 7,000đ
  * Phí thời gian: 3,500đ/phút
  */
@@ -76,7 +92,7 @@ fun calculateBookingFare(distanceKm: Double, durationMin: Double, multiplier: Do
 }
 
 /**
- * Fetches real road route from OSRM API (Đảm bảo lộ trình uốn lượn theo đường lộ)
+ * Lấy lộ trình đường đi thực tế từ OSRM
  */
 suspend fun fetchRealRoute(start: GeoPoint, end: GeoPoint): Triple<List<GeoPoint>, Double, Double> {
     return withContext(Dispatchers.IO) {
@@ -108,24 +124,14 @@ suspend fun fetchRealRoute(start: GeoPoint, end: GeoPoint): Triple<List<GeoPoint
                 throw Exception("No routes found")
             }
         } catch (e: Exception) {
-            // Fallback: Haversine
             val dist = start.distanceToAsDouble(end) / 1000.0
             Triple(listOf(start, end), dist, dist * 2.5) 
         }
     }
 }
 
-private fun getPopularDestCoords(name: String): String {
-    return when (name) {
-        "Vinhomes Central Park" -> "10.7950,106.7218"
-        "Nhà Thờ Đức Bà" -> "10.7798,106.6990"
-        "Bến Xe Miền Đông Mới" -> "10.8825,106.8122"
-        "Bến Xe Miền Tây" -> "10.7516,106.6190"
-        else -> "10.7769,106.7009"
-    }
-}
+// --- COMPONENTS ---
 
-// --- COMPONENT 1: SERVICE OPTION ITEM ---
 @Composable
 fun ServiceOptionItem(
     name: String,
@@ -180,7 +186,7 @@ fun ServiceOptionItem(
     }
 }
 
-// --- SCREEN 1: BẠN MUỐN ĐI ĐÂU? ---
+// --- SCREEN 1: NHẬP ĐIỂM ĐẾN ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchDestinationScreen(
@@ -195,12 +201,7 @@ fun SearchDestinationScreen(
     var showGPSDialog by remember { mutableStateOf(false) }
     var currentPickupCoords by remember { mutableStateOf("10.8456,106.7533") }
 
-    val popularDestinations = listOf(
-        Pair("Vinhomes Central Park", "208 Nguyễn Hữu Cảnh, P.22, Q.Bình Thạnh, Hồ Chí Minh"),
-        Pair("Nhà Thờ Đức Bà", "Công Xã Paris, P.Bến Nghé, Q.1, Hồ Chí Minh"),
-        Pair("Bến Xe Miền Đông Mới", "Xa Lộ Hà Nội, P.Long Bình, TP.Thủ Đức, Hồ Chí Minh"),
-        Pair("Bến Xe Miền Tây", "395 Kinh Dương Vương, P.An Lạc, Q.Bình Tân, Hồ Chí Minh")
-    )
+    val history = SearchHistoryManager.history
 
     if (showGPSDialog) {
         AlertDialog(
@@ -232,6 +233,7 @@ fun SearchDestinationScreen(
         )
 
         Column(modifier = Modifier.padding(16.dp)) {
+            // Hiển thị điểm đón hiện tại (có thể bấm để GPS)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -251,6 +253,7 @@ fun SearchDestinationScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Ô nhập điểm đến chính xác với icon tìm kiếm
             OutlinedTextField(
                 value = destinationText,
                 onValueChange = { destinationText = it },
@@ -264,18 +267,15 @@ fun SearchDestinationScreen(
                                     val addresses = geocoder.getFromLocationName(destinationText, 1)
                                     if (!addresses.isNullOrEmpty()) {
                                         val addr = addresses[0]
-                                        val lat = addr.latitude
-                                        val lon = addr.longitude
                                         val label = addr.getAddressLine(0) ?: destinationText
-                                        onDestinationConfirmed("$currentPickupCoords|$startLocationText|$label|$lat,$lon")
+                                        SearchHistoryManager.add(destinationText, label)
+                                        onDestinationConfirmed("$currentPickupCoords|$startLocationText|$label|${addr.latitude},${addr.longitude}")
                                     } else {
-                                        Toast.makeText(context, "Không tìm thấy địa chỉ chính xác", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Không tìm thấy địa chỉ này", Toast.LENGTH_SHORT).show()
                                     }
                                 } catch (e: Exception) {
-                                    Toast.makeText(context, "Lỗi kết nối tìm kiếm", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Lỗi tìm kiếm", Toast.LENGTH_SHORT).show()
                                 }
-                            } else {
-                                Toast.makeText(context, "Vui lòng nhập điểm đến", Toast.LENGTH_SHORT).show()
                             }
                         }
                     ) { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) }
@@ -285,18 +285,27 @@ fun SearchDestinationScreen(
                 singleLine = true
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
-            Text("Điểm đến phổ biến", fontWeight = FontWeight.Bold, color = Color.Gray, fontSize = 14.sp)
+            Spacer(modifier = Modifier.height(24.dp))
+            Text("Lịch sử tìm kiếm", fontWeight = FontWeight.Bold, color = Color.Gray, fontSize = 14.sp)
             Spacer(modifier = Modifier.height(8.dp))
 
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                popularDestinations.forEach { dest ->
+                if (history.isEmpty()) {
+                    Text("Chưa có lịch sử tìm kiếm", fontSize = 13.sp, color = Color.LightGray, modifier = Modifier.padding(vertical = 12.dp))
+                }
+                history.forEach { item ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { 
-                                val coords = getPopularDestCoords(dest.first)
-                                onDestinationConfirmed("$currentPickupCoords|$startLocationText|${dest.first}|$coords") 
+                                // Khi bấm vào lịch sử, xác nhận ngay
+                                try {
+                                    val addresses = geocoder.getFromLocationName(item.first, 1)
+                                    val coords = if (!addresses.isNullOrEmpty()) "${addresses[0].latitude},${addresses[0].longitude}" else "10.7798,106.6990"
+                                    onDestinationConfirmed("$currentPickupCoords|$startLocationText|${item.second}|$coords")
+                                } catch(e: Exception) {
+                                    onDestinationConfirmed("$currentPickupCoords|$startLocationText|${item.second}|10.7798,106.6990")
+                                }
                             }
                             .padding(vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -306,8 +315,8 @@ fun SearchDestinationScreen(
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(dest.first, fontWeight = FontWeight.Bold, color = Color(0xFF212121), fontSize = 14.sp)
-                            Text(dest.second, color = Color.Gray, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(item.first, fontWeight = FontWeight.Bold, color = Color(0xFF212121), fontSize = 14.sp)
+                            Text(item.second, color = Color.Gray, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                     HorizontalDivider(color = Color(0xFFEEEEEE))
@@ -317,7 +326,7 @@ fun SearchDestinationScreen(
     }
 }
 
-// --- SCREEN 2: CHỌN ĐIỂM ĐÓN ---
+// --- SCREEN 2: XÁC NHẬN ĐIỂM ĐÓN ---
 @Composable
 fun ConfirmPickupScreen(
     destination: String,
@@ -330,6 +339,7 @@ fun ConfirmPickupScreen(
     var currentLat by remember { mutableDoubleStateOf(10.8456) }
     var currentLon by remember { mutableDoubleStateOf(106.7533) }
     val geocoder = remember { Geocoder(context, Locale("vi", "VN")) }
+    var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
 
     val destParts = remember(destination) { destination.split("|") }
     val extractedDestText = if (destParts.size > 2) destParts[2] else destination
@@ -347,9 +357,9 @@ fun ConfirmPickupScreen(
                     setTileSource(TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
                     controller.setZoom(18.0)
-                    controller.setCenter(GeoPoint(10.8456, 106.7533))
+                    controller.setCenter(GeoPoint(currentLat, currentLon))
+                    mapViewInstance = this
 
-                    // Marker Điểm Đến uốn lượn chính xác
                     destCoords?.let {
                         val marker = Marker(this).apply {
                             position = it
@@ -413,17 +423,42 @@ fun ConfirmPickupScreen(
                 Text(text = "Xác nhận điểm đón chính xác", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(10.dp))
 
+                // Ô nhập địa chỉ điểm đón chính xác với icon tìm kiếm
                 OutlinedTextField(
                     value = textInputPickup,
                     onValueChange = { textInputPickup = it },
-                    placeholder = { Text("Số nhà, tên ngõ...") },
+                    placeholder = { Text("Nhập địa chỉ điểm đón chính xác...") },
                     leadingIcon = { Icon(Icons.Default.EditLocation, contentDescription = null, tint = Color.Gray) },
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            if (textInputPickup.isNotBlank()) {
+                                try {
+                                    val addresses = geocoder.getFromLocationName(textInputPickup, 1)
+                                    if (!addresses.isNullOrEmpty()) {
+                                        val addr = addresses[0]
+                                        currentLat = addr.latitude
+                                        currentLon = addr.longitude
+                                        centerAddress = addr.getAddressLine(0) ?: textInputPickup
+                                        mapViewInstance?.controller?.animateTo(GeoPoint(currentLat, currentLon))
+                                    } else {
+                                        Toast.makeText(context, "Không tìm thấy địa chỉ", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch(e: Exception) {
+                                    Toast.makeText(context, "Lỗi tìm kiếm", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray)
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
 
+                // Hiển thị địa chỉ đang chọn trên Map
                 Row(
                     modifier = Modifier.fillMaxWidth().background(Color(0xFFE3F2FD), RoundedCornerShape(8.dp)).padding(10.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -437,7 +472,8 @@ fun ConfirmPickupScreen(
 
                 Button(
                     onClick = {
-                        val cleanPickupLabel = (if(textInputPickup.isNotBlank()) textInputPickup else centerAddress).replace("|", "-")
+                        val finalLabel = if(textInputPickup.isNotBlank() && textInputPickup.length > 5) textInputPickup else centerAddress
+                        val cleanPickupLabel = finalLabel.replace("|", "-")
                         val cleanDestLabel = extractedDestText.replace("|", "-")
                         val destCoordStr = if (destCoords != null) "${destCoords.latitude},${destCoords.longitude}" else "10.7798,106.6990"
                         onPickupConfirmed("$currentLat,$currentLon|$cleanPickupLabel|$cleanDestLabel|$destCoordStr")
@@ -565,13 +601,11 @@ fun BookingSummaryScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Nút Back top left
         IconButton(
             onClick = onBack,
             modifier = Modifier.padding(top = 40.dp, start = 16.dp).background(Color.White, CircleShape)
         ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
 
-        // Nút Center on Pickup middle right
         Box(modifier = Modifier.fillMaxSize().padding(end = 16.dp), contentAlignment = Alignment.CenterEnd) {
             FloatingActionButton(
                 onClick = {
@@ -616,7 +650,7 @@ fun BookingSummaryScreen(
                 if (!isLoadingRoute) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Lộ trình: ${String.format(Locale.getDefault(), "%.2f", calculatedKm)} km (~${durationMin.toInt()} phút)",
+                        "Lộ trình: ${String.format(Locale.getDefault(), "%,d", (calculatedKm).toInt())} km (~${durationMin.toInt()} phút)",
                         fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold
                     )
                 }
@@ -654,7 +688,8 @@ fun BookingSummaryScreen(
                     if (isLoadingRoute) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.Black, strokeWidth = 2.dp)
                     } else {
-                        Text("Đặt $selectedServiceName - ${String.format(Locale.getDefault(), "%,d", if(selectedServiceName == "CarzBike") priceBike else priceCar)}đ", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        val currentPrice = if(selectedServiceName == "CarzBike") priceBike else priceCar
+                        Text("Đặt $selectedServiceName - ${String.format(Locale.getDefault(), "%,d", currentPrice)}đ", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                 }
             }
