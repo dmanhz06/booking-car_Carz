@@ -3,6 +3,7 @@ package com.example.carz.presentation.home
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -77,7 +78,9 @@ fun HomeTab(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo, onService
                 HomeHeader(name, avatarUrl, timeInfo)
             }
 
-            Box(modifier = Modifier.offset(y = (-15).dp)) { SearchSection() }
+            Box(modifier = Modifier.offset(y = (-15).dp)) { 
+                SearchSection(onClick = { onServiceSelected("bike") }) 
+            }
 
             ServiceGrid(onServiceSelected = { serviceName ->
                 when (serviceName.trim()) {
@@ -132,9 +135,13 @@ fun HomeHeader(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo) {
 }
 
 @Composable
-fun SearchSection() {
+fun SearchSection(onClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).shadow(10.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black.copy(alpha = 0.05f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .shadow(10.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black.copy(alpha = 0.05f))
+            .clickable { onClick() },
         shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -204,7 +211,6 @@ fun PromotionSection() {
             modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
         )
 
-        // 1. Food Deal Discount (3 ảnh tương ứng mục 1, 2, 3)
         PromotionRow(
             title = "Food Deal Discount",
             items = listOf(
@@ -214,7 +220,6 @@ fun PromotionSection() {
             )
         )
 
-        // 2. Drink Deal Discount (3 ảnh tương ứng mục 1, 2, 3)
         PromotionRow(
             title = "Drink Deal Discount",
             items = listOf(
@@ -224,7 +229,6 @@ fun PromotionSection() {
             )
         )
 
-        // 3. Car Booking Discount (1 ảnh car_booking_discount1 và 2 ảnh get_start_goc)
         PromotionRow(
             title = "Car Booking Discount",
             items = listOf(
@@ -247,7 +251,6 @@ fun PromotionRow(title: String, items: List<PromotionItem>) {
             Text(text = "Xem thêm", color = CarzBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
 
-        // Sử dụng LazyRow để cuộn mượt và chuyên nghiệp hơn
         LazyRow(
             contentPadding = PaddingValues(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)

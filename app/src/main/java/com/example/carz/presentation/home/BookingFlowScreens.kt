@@ -54,16 +54,15 @@ import kotlin.math.*
 // --- UTILITIES & LOGIC ---
 
 /**
- * Calculates fare based on the specific formula:
- * Phí cơ bản: 12,000đ (cho 2km đầu)
- * Phí mỗi km tiếp theo: 10,000đ
- * Phí thời gian: 5,000đ/phút
- * Multiplier: Mặc định 1.0 (Đã ẩn khỏi UI theo yêu cầu)
+ * Calculates fare based on the specific formula (Đã giảm 30% so với gốc):
+ * Phí cơ bản: 8,400đ (cho 2km đầu)
+ * Phí mỗi km tiếp theo: 7,000đ
+ * Phí thời gian: 3,500đ/phút
  */
 fun calculateBookingFare(distanceKm: Double, durationMin: Double, multiplier: Double = 1.0): Int {
-    val baseFare = 12000.0
-    val perKmNext = 10000.0
-    val timeFeePerMin = 5000.0
+    val baseFare = 8400.0
+    val perKmNext = 7000.0
+    val timeFeePerMin = 3500.0
     
     val distanceFare = if (distanceKm <= 2.0) {
         baseFare
@@ -77,12 +76,11 @@ fun calculateBookingFare(distanceKm: Double, durationMin: Double, multiplier: Do
 }
 
 /**
- * Fetches real road route from OSRM API (Hệ thống đường đi thực tế như Google Maps)
+ * Fetches real road route from OSRM API (Đảm bảo lộ trình uốn lượn theo đường lộ)
  */
 suspend fun fetchRealRoute(start: GeoPoint, end: GeoPoint): Triple<List<GeoPoint>, Double, Double> {
     return withContext(Dispatchers.IO) {
         try {
-            // lon,lat format for OSRM
             val urlStr = "https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson"
             val url = URL(urlStr)
             val connection = url.openConnection() as HttpURLConnection
@@ -110,7 +108,7 @@ suspend fun fetchRealRoute(start: GeoPoint, end: GeoPoint): Triple<List<GeoPoint
                 throw Exception("No routes found")
             }
         } catch (e: Exception) {
-            // Fallback: Haversine distance
+            // Fallback: Haversine
             val dist = start.distanceToAsDouble(end) / 1000.0
             Triple(listOf(start, end), dist, dist * 2.5) 
         }
@@ -179,26 +177,6 @@ fun ServiceOptionItem(
                 color = Color(0xFF212121)
             )
         }
-    }
-}
-
-// --- COMPONENT 2: DISCOUNT HORIZONTAL ITEM ---
-@Composable
-fun DiscountHorizontalItem(imgRes: Int, title: String, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Image(
-            painter = painterResource(id = imgRes),
-            contentDescription = null,
-            modifier = Modifier.size(20.dp).clip(RoundedCornerShape(4.dp)),
-            contentScale = ContentScale.Crop
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(text = title, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color(0xFF212121), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -276,7 +254,7 @@ fun SearchDestinationScreen(
             OutlinedTextField(
                 value = destinationText,
                 onValueChange = { destinationText = it },
-                placeholder = { Text("Nhập điểm đến chính xác...") },
+                placeholder = { Text("Nhập địa chỉ điểm đến chính xác...") },
                 leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.Red) },
                 trailingIcon = {
                     IconButton(
@@ -368,10 +346,10 @@ fun ConfirmPickupScreen(
                 MapView(ctx).apply {
                     setTileSource(TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
-                    controller.setZoom(17.5)
+                    controller.setZoom(18.0)
                     controller.setCenter(GeoPoint(10.8456, 106.7533))
 
-                    // Marker Điểm Đến (với chữ hiển thị phía trên)
+                    // Marker Điểm Đến uốn lượn chính xác
                     destCoords?.let {
                         val marker = Marker(this).apply {
                             position = it
@@ -411,7 +389,7 @@ fun ConfirmPickupScreen(
             modifier = Modifier.padding(top = 40.dp, start = 16.dp).background(Color.White, CircleShape)
         ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
 
-        // Icon Điểm Đón cố định ở giữa màn hình khi scroll map
+        // Nhãn ĐIỂM ĐÓN cố định ở giữa
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Surface(
@@ -475,17 +453,19 @@ fun ConfirmPickupScreen(
     }
 }
 
-// --- SCREEN 3: TỔNG HỢP ĐẶT XE (LỘ TRÌNH THỰC TẾ & TÍNH GIÁ) ---
+// --- SCREEN 3: TỔNG HỢP ĐẶT XE ---
 @Composable
 fun BookingSummaryScreen(
     vehicleType: String,
     pickup: String,
     destination: String,
     onBookingDone: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onEditPickup: () -> Unit,
+    onEditDestination: () -> Unit
 ) {
     var isBookingSuccessShow by remember { mutableStateOf(false) }
-    val multiplier = 1.0 // Multiplier cố định 1.0, đã xóa phần nhập liệu UI
+    var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
 
     val pickupParts = pickup.split("|")
     val pickupLabel = if (pickupParts.size > 1) pickupParts[1] else "Vị trí đón"
@@ -520,9 +500,8 @@ fun BookingSummaryScreen(
         isLoadingRoute = false
     }
 
-    // Fare calculation
-    val priceBike = calculateBookingFare(calculatedKm, durationMin, multiplier)
-    val priceCar = (calculateBookingFare(calculatedKm, durationMin, multiplier) * 1.8).toInt() 
+    val priceBike = calculateBookingFare(calculatedKm, durationMin)
+    val priceCar = (calculateBookingFare(calculatedKm, durationMin) * 1.8).toInt() 
 
     var selectedServiceName by remember { mutableStateOf(if(vehicleType == "car") "CarzCar" else "CarzBike") }
     var selectedServicePrice by remember { mutableIntStateOf(if(vehicleType == "car") priceCar else priceBike) }
@@ -545,16 +524,19 @@ fun BookingSummaryScreen(
                 MapView(ctx).apply {
                     setTileSource(TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
+                    mapViewInstance = this
 
                     val markerStart = Marker(this).apply {
                         position = startPoint
                         title = "ĐIỂM ĐÓN"
                         snippet = pickupLabel
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                     }
                     val markerEnd = Marker(this).apply {
                         position = endPoint
                         title = "ĐIỂM ĐẾN"
                         snippet = destLabel
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                     }
                     overlays.add(markerStart)
                     overlays.add(markerEnd)
@@ -571,7 +553,7 @@ fun BookingSummaryScreen(
                     post {
                         if (routePoints.isNotEmpty()) {
                             val bounds = BoundingBox.fromGeoPoints(routePoints)
-                            zoomToBoundingBox(bounds, true, 200)
+                            zoomToBoundingBox(bounds, true, 250)
                         }
                     }
                 }
@@ -583,20 +565,50 @@ fun BookingSummaryScreen(
             modifier = Modifier.fillMaxSize()
         )
 
+        // Nút Back top left
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.padding(top = 40.dp, start = 16.dp).background(Color.White, CircleShape)
+        ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
+
+        // Nút Center on Pickup middle right
+        Box(modifier = Modifier.fillMaxSize().padding(end = 16.dp), contentAlignment = Alignment.CenterEnd) {
+            FloatingActionButton(
+                onClick = {
+                    mapViewInstance?.let { map ->
+                        map.controller.animateTo(startPoint)
+                        map.controller.setZoom(18.0)
+                    }
+                },
+                containerColor = Color.White,
+                contentColor = Color(0xFF2196F3),
+                modifier = Modifier.size(48.dp),
+                shape = CircleShape
+            ) {
+                Icon(Icons.Default.MyLocation, contentDescription = "Center Pickup")
+            }
+        }
+
         Card(
-            modifier = Modifier.fillMaxWidth().padding(top = 40.dp, start = 14.dp, end = 14.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 100.dp, start = 14.dp, end = 14.dp),
             shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             elevation = CardDefaults.cardElevation(4.dp)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().clickable { onEditPickup() }
+                ) {
                     Icon(Icons.Default.RadioButtonChecked, contentDescription = null, tint = Color.Green, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(10.dp))
                     Text("Đón: $pickupLabel", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Spacer(modifier = Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().clickable { onEditDestination() }
+                ) {
                     Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.Red, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(10.dp))
                     Text("Đến: $destLabel", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
@@ -642,7 +654,7 @@ fun BookingSummaryScreen(
                     if (isLoadingRoute) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.Black, strokeWidth = 2.dp)
                     } else {
-                        Text("Đặt $selectedServiceName - ${String.format(Locale.getDefault(), "%,d", selectedServicePrice)}đ", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Đặt $selectedServiceName - ${String.format(Locale.getDefault(), "%,d", if(selectedServiceName == "CarzBike") priceBike else priceCar)}đ", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                 }
             }

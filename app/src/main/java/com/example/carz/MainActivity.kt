@@ -18,7 +18,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Khởi tạo cấu hình bộ nhớ đệm cho OpenStreetMap (OSMDroid) hoạt động chính xác
         Configuration.getInstance().load(applicationContext, getSharedPreferences("carz_osm_pref", MODE_PRIVATE))
 
         enableEdgeToEdge()
@@ -27,8 +26,7 @@ class MainActivity : ComponentActivity() {
                 var currentScreen by remember { mutableStateOf("splash") }
                 var userData by remember { mutableStateOf<UserData?>(null) }
 
-                // Các biến lưu trữ dữ liệu luồng hành trình đặt xe thực tế
-                var targetVehicleType by remember { mutableStateOf("bike") } // "bike" hoặc "car"
+                var targetVehicleType by remember { mutableStateOf("bike") }
                 var selectedDestinationAddress by remember { mutableStateOf("") }
                 var selectedPickupAddress by remember { mutableStateOf("") }
 
@@ -49,45 +47,40 @@ class MainActivity : ComponentActivity() {
                         userName = userData?.name ?: "Mạnh Duy",
                         userAvatarUrl = userData?.avatarUrl,
                         onServiceSelected = { vehicleType ->
-                            // Giải quyết lỗi màn hình trắng: Nhận diện loại xe và đưa vào luồng Hình 1
-                            if (vehicleType == "bike" || vehicleType == "car") {
-                                targetVehicleType = vehicleType
-                                currentScreen = "search_destination"
-                            }
+                            targetVehicleType = vehicleType
+                            currentScreen = "search_destination"
                         },
                         onLogout = {
                             userData = null
                             currentScreen = "get_started"
                         }
                     )
-                    // HÌNH 1: Màn hình nhập điểm đến
                     "search_destination" -> SearchDestinationScreen(
                         vehicleType = targetVehicleType,
                         onDestinationConfirmed = { destination ->
                             selectedDestinationAddress = destination
-                            currentScreen = "confirm_pickup" // Chuyển tiếp sang màn Hình 2
+                            currentScreen = "confirm_pickup"
                         },
                         onBack = { currentScreen = "home" }
                     )
-                    // HÌNH 2: Màn hình xác nhận điểm đón tích hợp Map định vị thực tế
                     "confirm_pickup" -> ConfirmPickupScreen(
                         destination = selectedDestinationAddress,
                         onPickupConfirmed = { pickup ->
                             selectedPickupAddress = pickup
-                            currentScreen = "booking_summary" // Chuyển tiếp sang màn Hình 3
+                            currentScreen = "booking_summary"
                         },
                         onBack = { currentScreen = "search_destination" }
                     )
-                    // HÌNH 3 & 4: Bản đồ lộ trình, tính toán khoảng giá tiền từ 20k - 115k và xác nhận đặt xe
                     "booking_summary" -> BookingSummaryScreen(
                         vehicleType = targetVehicleType,
                         pickup = selectedPickupAddress,
                         destination = selectedDestinationAddress,
                         onBookingDone = {
-                            // Sau khi hoàn thành quy trình đặt xe, điều hướng an toàn về màn hình chính
                             currentScreen = "home"
                         },
-                        onBack = { currentScreen = "confirm_pickup" }
+                        onBack = { currentScreen = "confirm_pickup" },
+                        onEditPickup = { currentScreen = "confirm_pickup" },
+                        onEditDestination = { currentScreen = "search_destination" }
                     )
                 }
             }
