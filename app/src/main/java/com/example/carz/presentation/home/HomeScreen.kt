@@ -4,7 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -23,12 +22,16 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.carz.R
+import com.example.carz.data.SearchHistory
+import com.example.carz.data.SearchHistoryDatabase
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
@@ -66,6 +69,11 @@ fun HomeScreen(
 
 @Composable
 fun HomeTab(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo, onServiceSelected: (String) -> Unit) {
+    val context = LocalContext.current
+    val db = remember { SearchHistoryDatabase.getDatabase(context) }
+    val history by db.searchHistoryDao().getAllHistory().collectAsState(initial = emptyList())
+    val coroutineScope = rememberCoroutineScope()
+
     Box(modifier = Modifier.fillMaxSize().background(CarzBgGray)) {
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Box {
@@ -79,7 +87,23 @@ fun HomeTab(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo, onService
             }
 
             Box(modifier = Modifier.offset(y = (-15).dp)) { 
-                SearchSection(onClick = { onServiceSelected("bike") }) 
+                SearchSection(
+                    history = history,
+                    onSearchClick = { onServiceSelected("bike") },
+                    onHistoryItemClick = { item ->
+                        onServiceSelected("bike") 
+                    },
+                    onPin = { item ->
+                        coroutineScope.launch {
+                            db.searchHistoryDao().updatePin(item.id, !item.isPinned)
+                        }
+                    },
+                    onDelete = { item ->
+                        coroutineScope.launch {
+                            db.searchHistoryDao().delete(item)
+                        }
+                    }
+                ) 
             }
 
             ServiceGrid(onServiceSelected = { serviceName ->
@@ -135,17 +159,25 @@ fun HomeHeader(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo) {
 }
 
 @Composable
-fun SearchSection(onClick: () -> Unit) {
+fun SearchSection(
+    history: List<SearchHistory>,
+    onSearchClick: () -> Unit,
+    onHistoryItemClick: (SearchHistory) -> Unit,
+    onPin: (SearchHistory) -> Unit,
+    onDelete: (SearchHistory) -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
-            .shadow(10.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black.copy(alpha = 0.05f))
-            .clickable { onClick() },
+            .shadow(10.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black.copy(alpha = 0.05f)),
         shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { onSearchClick() },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color(0xFFFF8C00), modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(text = "Bạn muốn đi tới đâu?", color = CarzTextMain.copy(alpha = 0.7f), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
@@ -158,26 +190,23 @@ fun SearchSection(onClick: () -> Unit) {
                     }
                 }
             }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), thickness = 0.5.dp, color = Color(0xFFF5F5F5))
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                QuickDestinationItem("Vinhomes Central Park")
-                QuickDestinationItem("Sân bay Tân Sơn Nhất")
-                QuickDestinationItem("Chợ Bến Thành")
+            
+            if (history.isNotEmpty()) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), thickness = 0.5.dp, color = Color(0xFFF5F5F5))
+                Column {
+                    history.take(3).forEach { item ->
+                        SwipeableHistoryItem(
+                            item = item,
+                            onPin = { onPin(item) },
+                            onDelete = { onDelete(item) },
+                            onClick = { onHistoryItemClick(item) }
+                        )
+                        if (item != history.take(3).last()) {
+                            HorizontalDivider(color = Color(0xFFF5F5F5), thickness = 0.5.dp)
+                        }
+                    }
+                }
             }
-        }
-    }
-}
-
-@Composable
-fun QuickDestinationItem(label: String) {
-    Surface(shape = RoundedCornerShape(16.dp), color = Color(0xFFF8F8F8), border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFFEEEEEE))) {
-        Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(11.dp), tint = CarzBlue)
-            Spacer(modifier = Modifier.width(5.dp))
-            Text(text = label, fontSize = 11.sp, color = CarzTextMain, fontWeight = FontWeight.Bold, maxLines = 1)
         }
     }
 }
@@ -255,7 +284,7 @@ fun PromotionRow(title: String, items: List<PromotionItem>) {
             contentPadding = PaddingValues(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(items) { item ->
+            items(items) { item: PromotionItem ->
                 PromotionCard(item.title, item.rating, item.time, item.imageRes)
             }
         }

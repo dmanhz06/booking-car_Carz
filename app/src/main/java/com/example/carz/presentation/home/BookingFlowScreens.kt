@@ -3,15 +3,9 @@ package com.example.carz.presentation.home
 import android.location.Geocoder
 import android.widget.Toast
 import androidx.compose.animation.*
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -24,19 +18,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.example.carz.R
+import androidx.core.graphics.toColorInt
 import com.example.carz.data.SearchHistory
 import com.example.carz.data.SearchHistoryDatabase
 import kotlinx.coroutines.Dispatchers
@@ -56,7 +46,6 @@ import org.osmdroid.views.overlay.Polyline
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
-import kotlin.math.*
 
 // --- UTILITIES & LOGIC ---
 
@@ -137,10 +126,10 @@ fun ServiceOptionItem(
             .padding(vertical = 4.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) Color(0xFFFFFDE7) else Color(0xFFF9F9F9),
+        color = if (isSelected) CarzLightBlue else Color(0xFFF9F9F9),
         border = androidx.compose.foundation.BorderStroke(
             width = if (isSelected) 1.5.dp else 0.5.dp,
-            color = if (isSelected) Color(0xFFFFD54F) else Color(0xFFE0E0E0)
+            color = if (isSelected) CarzBlue else Color(0xFFE0E0E0)
         )
     ) {
         Row(
@@ -154,10 +143,10 @@ fun ServiceOptionItem(
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .background(if (isSelected) Color(0xFFFFD54F) else Color(0xFFE0E0E0), CircleShape),
+                        .background(if (isSelected) CarzBlue else Color(0xFFE0E0E0), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(imageVector = icon, contentDescription = null, tint = if (isSelected) Color.Black else Color.Gray, modifier = Modifier.size(22.dp))
+                    Icon(imageVector = icon, contentDescription = null, tint = if (isSelected) Color.White else Color.Gray, modifier = Modifier.size(22.dp))
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
@@ -173,127 +162,6 @@ fun ServiceOptionItem(
                 fontSize = 15.sp,
                 color = Color(0xFF212121)
             )
-        }
-    }
-}
-
-@Composable
-fun SwipeableHistoryItem(
-    item: SearchHistory,
-    onPin: () -> Unit,
-    onDelete: () -> Unit,
-    onClick: () -> Unit
-) {
-    val coroutineScope = rememberCoroutineScope()
-    val offsetX = remember { Animatable(0f) }
-    val actionWidth = 120.dp
-    val actionWidthPx = with(androidx.compose.ui.platform.LocalDensity.current) { actionWidth.toPx() }
-    
-    // Auto-close after 3.5 seconds when revealed
-    LaunchedEffect(offsetX.value) {
-        if (offsetX.value <= -actionWidthPx) {
-            delay(3500)
-            offsetX.animateTo(0f, tween(300))
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(IntrinsicSize.Min)
-            .background(Color.White)
-    ) {
-        // Actions Background (revealed when swiped left)
-        Row(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
-                .width(actionWidth),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Pin/Unpin Action
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .weight(1f)
-                    .background(if (item.isPinned) Color(0xFFFFB74D) else Color(0xFF81C784))
-                    .clickable { 
-                        onPin()
-                        coroutineScope.launch { offsetX.animateTo(0f) }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = if (item.isPinned) Icons.Default.PushPin else Icons.Default.Favorite,
-                    contentDescription = "Pin",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            // Delete Action
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .weight(1f)
-                    .background(Color(0xFFE57373))
-                    .clickable { 
-                        onDelete()
-                        coroutineScope.launch { offsetX.animateTo(0f) }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(20.dp))
-            }
-        }
-
-        // Foreground Content
-        Box(
-            modifier = Modifier
-                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                .fillMaxWidth()
-                .background(Color.White)
-                .clickable { onClick() }
-                .draggable(
-                    orientation = Orientation.Horizontal,
-                    state = rememberDraggableState { delta ->
-                        coroutineScope.launch {
-                            val newOffset = (offsetX.value + delta).coerceIn(-actionWidthPx * 1.5f, 0f)
-                            offsetX.snapTo(newOffset)
-                        }
-                    },
-                    onDragStopped = {
-                        if (offsetX.value < -actionWidthPx / 2) {
-                            offsetX.animateTo(-actionWidthPx, tween(300))
-                        } else {
-                            offsetX.animateTo(0f, tween(300))
-                        }
-                    }
-                )
-                .padding(vertical = 12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(Color(0xFFF5F5F5), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (item.isPinned) Icons.Default.PushPin else Icons.Default.History,
-                        contentDescription = null,
-                        tint = if (item.isPinned) Color(0xFFFBC02D) else Color.Gray,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(item.name, fontWeight = FontWeight.Bold, color = Color(0xFF212121), fontSize = 14.sp)
-                    Text(item.address, color = Color.Gray, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
         }
     }
 }
@@ -326,7 +194,7 @@ fun SearchDestinationScreen(
             text = { Text("Bạn có muốn chọn vị trí GPS hiện tại làm điểm đón không?") },
             confirmButton = {
                 Button(
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD54F), contentColor = Color.Black),
+                    colors = ButtonDefaults.buttonColors(containerColor = CarzBlue, contentColor = Color.White),
                     onClick = {
                         startLocationText = "75/22 Đường Số 48, Hiệp Bình Chánh, Thủ Đức"
                         currentPickupCoords = "10.8465,106.7541"
@@ -380,7 +248,7 @@ fun SearchDestinationScreen(
                 contentAlignment = Alignment.CenterStart
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.MyLocation, contentDescription = null, tint = Color(0xFF2196F3))
+                    Icon(Icons.Default.MyLocation, contentDescription = null, tint = CarzBlue)
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(text = startLocationText, color = Color(0xFF212121), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
@@ -388,7 +256,7 @@ fun SearchDestinationScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Nhập điểm đến chính xác
+            // Ô nhập điểm đến chính xác với icon tìm kiếm
             OutlinedTextField(
                 value = destinationText,
                 onValueChange = { destinationText = it },
@@ -529,6 +397,7 @@ fun ConfirmPickupScreen(
             modifier = Modifier.padding(top = 40.dp, start = 16.dp).background(Color.White, CircleShape)
         ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
 
+        // Nhãn ĐIỂM ĐÓN cố định ở giữa
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Surface(
@@ -538,7 +407,7 @@ fun ConfirmPickupScreen(
                 ) {
                     Text("ĐIỂM ĐÓN", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                 }
-                Icon(Icons.Default.MyLocation, contentDescription = null, tint = Color(0xFF2196F3), modifier = Modifier.size(40.dp).offset(y = (-4).dp))
+                Icon(Icons.Default.MyLocation, contentDescription = null, tint = CarzBlue, modifier = Modifier.size(40.dp).offset(y = (-4).dp))
             }
         }
 
@@ -552,7 +421,7 @@ fun ConfirmPickupScreen(
                 Text(text = "Xác nhận điểm đón chính xác", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Nhập địa chỉ điểm đón chính xác với icon tìm kiếm
+                // Ô nhập địa chỉ điểm đón chính xác với icon tìm kiếm
                 OutlinedTextField(
                     value = textInputPickup,
                     onValueChange = { textInputPickup = it },
@@ -588,10 +457,10 @@ fun ConfirmPickupScreen(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Row(
-                    modifier = Modifier.fillMaxWidth().background(Color(0xFFE3F2FD), RoundedCornerShape(8.dp)).padding(10.dp),
+                    modifier = Modifier.fillMaxWidth().background(CarzLightBlue, RoundedCornerShape(8.dp)).padding(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Storefront, contentDescription = null, tint = Color(0xFF2196F3))
+                    Icon(Icons.Default.Storefront, contentDescription = null, tint = CarzBlue)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = centerAddress, fontSize = 13.sp, color = Color.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
@@ -607,7 +476,7 @@ fun ConfirmPickupScreen(
                         onPickupConfirmed("$currentLat,$currentLon|$cleanPickupLabel|$cleanDestLabel|$destCoordStr")
                     },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD54F), contentColor = Color.Black),
+                    colors = ButtonDefaults.buttonColors(containerColor = CarzBlue, contentColor = Color.White),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Xác nhận điểm đón này", fontWeight = FontWeight.Bold)
@@ -650,7 +519,7 @@ fun BookingSummaryScreen(
         } catch(e: Exception) { GeoPoint(10.7798, 106.6990) }
     }
 
-    var routePoints by remember { mutableStateOf<List<GeoPoint>>(listOf(startPoint, endPoint)) }
+    var routePoints by remember { mutableStateOf(listOf(startPoint, endPoint)) }
     var calculatedKm by remember { mutableDoubleStateOf(0.0) }
     var durationMin by remember { mutableDoubleStateOf(0.0) }
     var isLoadingRoute by remember { mutableStateOf(true) }
@@ -672,14 +541,6 @@ fun BookingSummaryScreen(
 
     LaunchedEffect(calculatedKm, durationMin, selectedServiceName) {
         selectedServicePrice = if (selectedServiceName == "CarzBike") priceBike else priceCar
-    }
-
-    if (isBookingSuccessShow) {
-        LaunchedEffect(Unit) {
-            delay(4000)
-            isBookingSuccessShow = false
-            onBookingDone()
-        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -709,7 +570,7 @@ fun BookingSummaryScreen(
 
                     val polyline = Polyline().apply {
                         setPoints(routePoints)
-                        outlinePaint.color = android.graphics.Color.parseColor("#FFD54F")
+                        outlinePaint.color = "#55B3D9".toColorInt()
                         outlinePaint.strokeWidth = 14f
                     }
                     overlays.add(polyline)
@@ -743,7 +604,7 @@ fun BookingSummaryScreen(
                     }
                 },
                 containerColor = Color.White,
-                contentColor = Color(0xFF2196F3),
+                contentColor = CarzBlue,
                 modifier = Modifier.size(48.dp),
                 shape = CircleShape
             ) {
@@ -810,12 +671,12 @@ fun BookingSummaryScreen(
                 Button(
                     onClick = { isBookingSuccessShow = true },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD54F), contentColor = Color.Black),
+                    colors = ButtonDefaults.buttonColors(containerColor = CarzBlue, contentColor = Color.White),
                     shape = RoundedCornerShape(12.dp),
                     enabled = !isLoadingRoute
                 ) {
                     if (isLoadingRoute) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.Black, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
                     } else {
                         val currentPrice = if(selectedServiceName == "CarzBike") priceBike else priceCar
                         Text("Đặt $selectedServiceName - ${String.format(Locale.getDefault(), "%,d", currentPrice)}đ", fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -834,7 +695,7 @@ fun BookingSummaryScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Tài xế Carz đang được kết nối với bạn. Vui lòng giữ liên lạc.", fontSize = 14.sp, color = Color.Gray, textAlign = TextAlign.Center)
                         Spacer(modifier = Modifier.height(20.dp))
-                        CircularProgressIndicator(color = Color(0xFFFFD54F), strokeWidth = 3.dp, modifier = Modifier.size(28.dp))
+                        CircularProgressIndicator(color = CarzBlue, strokeWidth = 3.dp, modifier = Modifier.size(28.dp))
                     }
                 }
             }

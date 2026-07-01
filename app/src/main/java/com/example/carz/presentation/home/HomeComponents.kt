@@ -1,21 +1,37 @@
 package com.example.carz.presentation.home
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.carz.R
+import com.example.carz.data.SearchHistory
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Calendar
+import kotlin.math.roundToInt
 
 // --- KHAI BÁO MÀU SẮC DUY NHẤT TẠI ĐÂY ---
 val CarzBlue = Color(0xFF55B3D9)
@@ -44,6 +60,126 @@ fun getTimeBasedInfo(): TimeBasedInfo {
 }
 
 // --- SHARED UI COMPONENTS ---
+
+@Composable
+fun SwipeableHistoryItem(
+    item: SearchHistory,
+    onPin: () -> Unit,
+    onDelete: () -> Unit,
+    onClick: () -> Unit
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val offsetX = remember { Animatable(0f) }
+    val actionWidth = 120.dp
+    val actionWidthPx = with(LocalDensity.current) { actionWidth.toPx() }
+    
+    // Tự động đóng sau 3.5 giây khi menu được mở hoàn toàn
+    LaunchedEffect(offsetX.value) {
+        if (offsetX.value <= -actionWidthPx) {
+            delay(3500)
+            offsetX.animateTo(0f, tween(300))
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .background(Color.White)
+    ) {
+        // Nền chứa các Action (Pin/Xóa)
+        Row(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .width(actionWidth),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(1f)
+                    .background(if (item.isPinned) Color(0xFFFFB74D) else Color(0xFF81C784))
+                    .clickable { 
+                        onPin()
+                        coroutineScope.launch { offsetX.animateTo(0f) }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (item.isPinned) Icons.Default.PushPin else Icons.Default.Favorite,
+                    contentDescription = "Pin",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(1f)
+                    .background(Color(0xFFE57373))
+                    .clickable { 
+                        onDelete()
+                        coroutineScope.launch { offsetX.animateTo(0f) }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+        }
+
+        // Nội dung hiển thị ở trên (có thể vuốt)
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .fillMaxWidth()
+                .background(Color.White)
+                .clickable { onClick() }
+                .draggable(
+                    orientation = Orientation.Horizontal,
+                    state = rememberDraggableState { delta ->
+                        coroutineScope.launch {
+                            val newOffset = (offsetX.value + delta).coerceIn(-actionWidthPx * 1.5f, 0f)
+                            offsetX.snapTo(newOffset)
+                        }
+                    },
+                    onDragStopped = {
+                        if (offsetX.value < -actionWidthPx / 2) {
+                            offsetX.animateTo(-actionWidthPx, tween(300))
+                        } else {
+                            offsetX.animateTo(0f, tween(300))
+                        }
+                    }
+                )
+                .padding(vertical = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(Color(0xFFF5F5F5), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (item.isPinned) Icons.Default.PushPin else Icons.Default.History,
+                        contentDescription = null,
+                        tint = if (item.isPinned) Color(0xFFFBC02D) else Color.Gray,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(item.name, fontWeight = FontWeight.Bold, color = Color(0xFF212121), fontSize = 14.sp)
+                    Text(item.address, color = Color.Gray, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun ServiceGrid(onServiceSelected: (String) -> Unit) {
     val services = listOf(
