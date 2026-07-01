@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -72,7 +73,6 @@ fun HomeTab(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo, onService
     val context = LocalContext.current
     val db = remember { SearchHistoryDatabase.getDatabase(context) }
     val history by db.searchHistoryDao().getAllHistory().collectAsState(initial = emptyList())
-    val coroutineScope = rememberCoroutineScope()
 
     Box(modifier = Modifier.fillMaxSize().background(CarzBgGray)) {
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -92,16 +92,6 @@ fun HomeTab(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo, onService
                     onSearchClick = { onServiceSelected("bike") },
                     onHistoryItemClick = { item ->
                         onServiceSelected("bike") 
-                    },
-                    onPin = { item ->
-                        coroutineScope.launch {
-                            db.searchHistoryDao().updatePin(item.id, !item.isPinned)
-                        }
-                    },
-                    onDelete = { item ->
-                        coroutineScope.launch {
-                            db.searchHistoryDao().delete(item)
-                        }
                     }
                 ) 
             }
@@ -159,12 +149,39 @@ fun HomeHeader(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo) {
 }
 
 @Composable
+fun QuickHistoryChip(name: String, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFFF0F7FB),
+        modifier = Modifier.clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.LocationOn,
+                contentDescription = null,
+                tint = CarzBlue,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = name,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = CarzTextMain,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
 fun SearchSection(
     history: List<SearchHistory>,
     onSearchClick: () -> Unit,
-    onHistoryItemClick: (SearchHistory) -> Unit,
-    onPin: (SearchHistory) -> Unit,
-    onDelete: (SearchHistory) -> Unit
+    onHistoryItemClick: (SearchHistory) -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -193,17 +210,16 @@ fun SearchSection(
             
             if (history.isNotEmpty()) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), thickness = 0.5.dp, color = Color(0xFFF5F5F5))
-                Column {
-                    history.take(3).forEach { item ->
-                        SwipeableHistoryItem(
-                            item = item,
-                            onPin = { onPin(item) },
-                            onDelete = { onDelete(item) },
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(bottom = 2.dp)
+                ) {
+                    items(history) { item ->
+                        QuickHistoryChip(
+                            name = item.name,
                             onClick = { onHistoryItemClick(item) }
                         )
-                        if (item != history.take(3).last()) {
-                            HorizontalDivider(color = Color(0xFFF5F5F5), thickness = 0.5.dp)
-                        }
                     }
                 }
             }
