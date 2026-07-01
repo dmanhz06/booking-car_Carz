@@ -1,11 +1,17 @@
 package com.example.carz.presentation.home
 
+import android.annotation.SuppressLint
 import android.location.Geocoder
 import android.widget.Toast
 import androidx.compose.animation.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -23,12 +29,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.toColorInt
 import com.example.carz.data.SearchHistory
 import com.example.carz.data.SearchHistoryDatabase
+import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -46,15 +54,10 @@ import org.osmdroid.views.overlay.Polyline
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import kotlin.math.roundToInt
 
 // --- UTILITIES & LOGIC ---
 
-/**
- * Tính giá cước (Đã giảm 30%):
- * Phí cơ bản: 8,400đ (2km đầu)
- * Phí mỗi km tiếp theo: 7,000đ
- * Phí thời gian: 3,500đ/phút
- */
 fun calculateBookingFare(distanceKm: Double, durationMin: Double, multiplier: Double = 1.0): Int {
     val baseFare = 8400.0
     val perKmNext = 7000.0
@@ -71,9 +74,6 @@ fun calculateBookingFare(distanceKm: Double, durationMin: Double, multiplier: Do
     return ((distanceFare + timeFare) * multiplier).toInt()
 }
 
-/**
- * Lấy lộ trình đường đi thực tế từ OSRM
- */
 suspend fun fetchRealRoute(start: GeoPoint, end: GeoPoint): Triple<List<GeoPoint>, Double, Double> {
     return withContext(Dispatchers.IO) {
         try {
@@ -167,6 +167,7 @@ fun ServiceOptionItem(
 }
 
 // --- SCREEN 1: NHẬP ĐIỂM ĐẾN ---
+@SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchDestinationScreen(
@@ -178,6 +179,7 @@ fun SearchDestinationScreen(
     val db = remember { SearchHistoryDatabase.getDatabase(context) }
     val history by db.searchHistoryDao().getAllHistory().collectAsState(initial = emptyList())
     val coroutineScope = rememberCoroutineScope()
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
     val geocoder = remember { Geocoder(context, Locale("vi", "VN")) }
     var startLocationText by remember { mutableStateOf("Vị trí của tôi") }
@@ -196,8 +198,21 @@ fun SearchDestinationScreen(
                 Button(
                     colors = ButtonDefaults.buttonColors(containerColor = CarzBlue, contentColor = Color.White),
                     onClick = {
-                        startLocationText = "75/22 Đường Số 48, Hiệp Bình Chánh, Thủ Đức"
-                        currentPickupCoords = "10.8465,106.7541"
+                        coroutineScope.launch {
+                            try {
+                                fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                                    if (location != null) {
+                                        currentPickupCoords = "${location.latitude},${location.longitude}"
+                                        val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                                        if (!addresses.isNullOrEmpty()) {
+                                            startLocationText = addresses[0].getAddressLine(0) ?: "Vị trí hiện tại"
+                                        }
+                                    }
+                                }
+                            } catch (e: SecurityException) {
+                                Toast.makeText(context, "Vui lòng cấp quyền vị trí", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                         showGPSDialog = false
                     }
                 ) { Text("Đồng ý") }
@@ -325,6 +340,7 @@ fun SearchDestinationScreen(
 }
 
 // --- SCREEN 2: XÁC NHẬN ĐIỂM ĐÓN ---
+@SuppressLint("MissingPermission")
 @Composable
 fun ConfirmPickupScreen(
     destination: String,
@@ -338,6 +354,8 @@ fun ConfirmPickupScreen(
     var currentLon by remember { mutableDoubleStateOf(106.7533) }
     val geocoder = remember { Geocoder(context, Locale("vi", "VN")) }
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+    val coroutineScope = rememberCoroutineScope()
 
     val destParts = remember(destination) { destination.split("|") }
     val extractedDestText = if (destParts.size > 2) destParts[2] else destination
@@ -346,6 +364,26 @@ fun ConfirmPickupScreen(
             val coords = destParts[3].split(",")
             if (coords.size >= 2) GeoPoint(coords[0].toDouble(), coords[1].toDouble()) else null
         } else null
+    }
+
+    // Tự động lấy vị trí thực của người dùng khi vào màn hình
+    LaunchedEffect(Unit) {
+        try {
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                if (location != null) {
+                    currentLat = location.latitude
+                    currentLon = location.longitude
+                    
+                    val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                    if (!addresses.isNullOrEmpty()) {
+                        centerAddress = addresses[0].getAddressLine(0) ?: "Vị trí hiện tại"
+                    }
+                    mapViewInstance?.controller?.animateTo(GeoPoint(currentLat, currentLon))
+                }
+            }
+        } catch (e: SecurityException) {
+            // Quyền chưa được cấp
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -672,8 +710,7 @@ fun BookingSummaryScreen(
                     onClick = { isBookingSuccessShow = true },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = CarzBlue, contentColor = Color.White),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = !isLoadingRoute
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     if (isLoadingRoute) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)

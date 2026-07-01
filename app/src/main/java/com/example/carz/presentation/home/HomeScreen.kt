@@ -4,11 +4,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -32,7 +32,6 @@ import coil.compose.AsyncImage
 import com.example.carz.R
 import com.example.carz.data.SearchHistory
 import com.example.carz.data.SearchHistoryDatabase
-import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
@@ -151,21 +150,21 @@ fun HomeHeader(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo) {
 @Composable
 fun QuickHistoryChip(name: String, onClick: () -> Unit) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         color = Color(0xFFF0F7FB),
         modifier = Modifier.clickable { onClick() }
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Default.LocationOn,
                 contentDescription = null,
                 tint = CarzBlue,
-                modifier = Modifier.size(14.dp)
+                modifier = Modifier.size(15.dp)
             )
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(5.dp))
             Text(
                 text = name,
                 fontSize = 12.sp,
@@ -195,24 +194,33 @@ fun SearchSection(
                 modifier = Modifier.fillMaxWidth().clickable { onSearchClick() },
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color(0xFFFF8C00), modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "Bạn muốn đi tới đâu?", color = CarzTextMain.copy(alpha = 0.7f), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                // Icon yellow with heart pattern
+                Surface(
+                    color = Color(0xFFFFD54F),
+                    shape = CircleShape,
+                    modifier = Modifier.size(26.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Favorite, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                    }
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(text = "Bạn muốn đi tới đâu?", color = CarzTextMain.copy(alpha = 0.8f), fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.weight(1f))
-                Surface(color = CarzLightBlue, shape = RoundedCornerShape(12.dp)) {
-                    Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Group, contentDescription = null, modifier = Modifier.size(12.dp), tint = CarzBlue)
+                Surface(color = Color(0xFFF0F7FB), shape = RoundedCornerShape(12.dp)) {
+                    Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Group, contentDescription = null, modifier = Modifier.size(15.dp), tint = CarzBlue)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Đặt hộ", fontSize = 10.sp, color = CarzBlue, fontWeight = FontWeight.Black)
+                        Text("Đặt hộ", fontSize = 12.sp, color = CarzBlue, fontWeight = FontWeight.Black)
                     }
                 }
             }
             
             if (history.isNotEmpty()) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), thickness = 0.5.dp, color = Color(0xFFF5F5F5))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), thickness = 0.5.dp, color = Color(0xFFEEEEEE))
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(bottom = 2.dp)
                 ) {
                     items(history) { item ->
