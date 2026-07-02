@@ -10,7 +10,6 @@ import java.util.concurrent.TimeUnit
 
 /**
  * RoutingService chịu trách nhiệm gọi OSRM API để lấy dữ liệu đường đi.
- * Đã chuyển sang HTTPS để tránh lỗi Cleartext Traffic trên Android.
  */
 class RoutingService {
     private val client = OkHttpClient.Builder()
@@ -24,14 +23,15 @@ class RoutingService {
      * OSRM yêu cầu định dạng: longitude,latitude.
      */
     suspend fun fetchRoute(start: GeoPoint, end: GeoPoint): RouteResult? = withContext(Dispatchers.IO) {
-        // Sử dụng HTTPS để đảm bảo kết nối thành công
-        val url = "https://router.project-osrm.org/route/v1/driving/" +
+        // Sử dụng HTTP (OSRM Public Demo server thường ổn định hơn qua HTTP)
+        // lon,lat;lon,lat
+        val url = "http://router.project-osrm.org/route/v1/driving/" +
                 "${start.longitude},${start.latitude};${end.longitude},${end.latitude}" +
                 "?overview=full&geometries=geojson"
 
         val request = Request.Builder()
             .url(url)
-            .header("User-Agent", "CarzApp/1.0") // Thêm User-Agent theo khuyến nghị của OSRM
+            .header("User-Agent", "CarzApp/1.0")
             .build()
 
         try {
@@ -41,7 +41,7 @@ class RoutingService {
                 val body = response.body?.string() ?: return@withContext null
                 val json = JSONObject(body)
                 
-                // Kiểm tra mã trạng thái của OSRM
+                // Kiểm tra mã trạng thái của OSRM (phải là "Ok")
                 if (json.optString("code") != "Ok") return@withContext null
                 
                 val routes = json.getJSONArray("routes")
@@ -55,7 +55,7 @@ class RoutingService {
                     
                     for (i in 0 until coordinates.length()) {
                         val coord = coordinates.getJSONArray(i)
-                        // OSRM: [longitude, latitude] -> Osmdroid: GeoPoint(latitude, longitude)
+                        // GeoJSON: [lon, lat] -> Osmdroid: GeoPoint(lat, lon)
                         points.add(GeoPoint(coord.getDouble(1), coord.getDouble(0)))
                     }
                     return@withContext RouteResult(points, distance)

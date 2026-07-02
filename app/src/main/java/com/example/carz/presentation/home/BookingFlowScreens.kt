@@ -33,10 +33,9 @@ import com.example.carz.data.SearchHistoryDatabase
 import com.example.carz.utils.NetworkUtils
 import com.example.carz.utils.RoutingService
 import com.google.android.gms.location.LocationServices
-import kotlinx.coroutines.Dispatchers
+import com.google.android.gms.location.Priority
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
@@ -51,7 +50,7 @@ import java.util.Locale
 // --- UTILITIES & LOGIC ---
 
 /**
- * Tính giá cước theo yêu cầu:
+ * Tính giá cước theo yêu cầu mới:
  * 2km đầu: 15.000 VNĐ.
  * Mỗi km tiếp theo: 8.000 VNĐ.
  * Làm tròn kết quả đến hàng nghìn gần nhất.
@@ -160,7 +159,8 @@ fun SearchDestinationScreen(
                     onClick = {
                         coroutineScope.launch {
                             try {
-                                fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                                    .addOnSuccessListener { location ->
                                     if (location != null) {
                                         currentPickupCoords = "${location.latitude},${location.longitude}"
                                         val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
@@ -274,6 +274,7 @@ fun SearchDestinationScreen(
                     Text("Chưa có lịch sử tìm kiếm", fontSize = 13.sp, color = Color.LightGray, modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp))
                 }
                 history.forEach { item ->
+                    // Sử dụng component SwipeableHistoryItem từ HomeComponents.kt đã gỡ bỏ trùng lặp
                     SwipeableHistoryItem(
                         item = item,
                         onPin = {
@@ -326,24 +327,22 @@ fun ConfirmPickupScreen(
         } else null
     }
 
-    // Tự động lấy vị trí thực của người dùng khi vào màn hình
+    // Tự động lấy vị trí thực khi vào màn hình
     LaunchedEffect(Unit) {
         try {
-            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                if (location != null) {
-                    currentLat = location.latitude
-                    currentLon = location.longitude
-                    
-                    val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
-                    if (!addresses.isNullOrEmpty()) {
-                        centerAddress = addresses[0].getAddressLine(0) ?: "Vị trí hiện tại"
+            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                .addOnSuccessListener { location ->
+                    if (location != null) {
+                        currentLat = location.latitude
+                        currentLon = location.longitude
+                        val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                        if (!addresses.isNullOrEmpty()) {
+                            centerAddress = addresses[0].getAddressLine(0) ?: "Vị trí hiện tại"
+                        }
+                        mapViewInstance?.controller?.animateTo(GeoPoint(currentLat, currentLon))
                     }
-                    mapViewInstance?.controller?.animateTo(GeoPoint(currentLat, currentLon))
                 }
-            }
-        } catch (e: SecurityException) {
-            // Quyền chưa được cấp
-        }
+        } catch (e: SecurityException) { }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -419,12 +418,37 @@ fun ConfirmPickupScreen(
                 Text(text = "Xác nhận điểm đón chính xác", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Ô nhập địa chỉ điểm đón chính xác với icon tìm kiếm
+                // Ô nhập địa chỉ điểm đón chính xác với icon lấy vị trí hiện tại
                 OutlinedTextField(
                     value = textInputPickup,
                     onValueChange = { textInputPickup = it },
                     placeholder = { Text("Nhập địa chỉ điểm đón chính xác...") },
-                    leadingIcon = { Icon(Icons.Default.EditLocation, contentDescription = null, tint = Color.Gray) },
+                    leadingIcon = {
+                        IconButton(onClick = {
+                            coroutineScope.launch {
+                                try {
+                                    fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                                        .addOnSuccessListener { location ->
+                                            if (location != null) {
+                                                currentLat = location.latitude
+                                                currentLon = location.longitude
+                                                val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                                                if (!addresses.isNullOrEmpty()) {
+                                                    val addr = addresses[0].getAddressLine(0) ?: ""
+                                                    centerAddress = addr
+                                                    textInputPickup = addr
+                                                }
+                                                mapViewInstance?.controller?.animateTo(GeoPoint(currentLat, currentLon))
+                                            }
+                                        }
+                                } catch (e: SecurityException) {
+                                    Toast.makeText(context, "Vui lòng cấp quyền vị trí", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.MyLocation, contentDescription = "Lấy vị trí chính xác hiện tại", tint = CarzBlue)
+                        }
+                    },
                     trailingIcon = {
                         IconButton(onClick = {
                             if (textInputPickup.isNotBlank()) {
@@ -681,7 +705,7 @@ fun BookingSummaryScreen(
                     ServiceOptionItem("CarzBike (Tiết kiệm)", finalFare, selectedServiceName == "CarzBike", Icons.Default.TwoWheeler) {
                         selectedServiceName = "CarzBike"
                     }
-                    ServiceOptionItem("CarzCar (Thoải mái)", priceCar, selectedServiceName == "CarzCar", Icons.Default.DirectionsCar) {
+                    ServiceOptionItem("CarzCar (Thoải mái)", (finalFare * 1.6).toInt(), selectedServiceName == "CarzCar", Icons.Default.DirectionsCar) {
                         selectedServiceName = "CarzCar"
                     }
                 }
@@ -698,7 +722,8 @@ fun BookingSummaryScreen(
                     if (isLoadingRoute) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
                     } else {
-                        Text("Đặt $selectedServiceName - ${String.format(Locale.getDefault(), "%,d", currentPrice)}đ", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        val priceToDisplay = if (selectedServiceName == "CarzBike") finalFare else (finalFare * 1.6).toInt()
+                        Text("Đặt $selectedServiceName - ${String.format(Locale.getDefault(), "%,d", priceToDisplay)}đ", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                 }
             }
