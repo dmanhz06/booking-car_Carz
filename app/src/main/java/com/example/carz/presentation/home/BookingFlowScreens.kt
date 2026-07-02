@@ -4,14 +4,9 @@ import android.annotation.SuppressLint
 import android.location.Geocoder
 import android.widget.Toast
 import androidx.compose.animation.*
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -29,19 +24,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.toColorInt
 import com.example.carz.data.SearchHistory
 import com.example.carz.data.SearchHistoryDatabase
+import com.example.carz.utils.NetworkUtils
+import com.example.carz.utils.RoutingService
 import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
@@ -51,63 +46,28 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.Locale
-import kotlin.math.roundToInt
 
 // --- UTILITIES & LOGIC ---
 
-fun calculateBookingFare(distanceKm: Double, durationMin: Double, multiplier: Double = 1.0): Int {
-    val baseFare = 8400.0
-    val perKmNext = 7000.0
-    val timeFeePerMin = 3500.0
+/**
+ * Tính giá cước theo yêu cầu:
+ * 2km đầu: 15.000 VNĐ.
+ * Mỗi km tiếp theo: 8.000 VNĐ.
+ * Làm tròn kết quả đến hàng nghìn gần nhất.
+ */
+fun calculateFare(distanceKm: Double): Int {
+    val baseFare = 15000.0
+    val perKmNext = 8000.0
     
-    val distanceFare = if (distanceKm <= 2.0) {
+    val total = if (distanceKm <= 2.0) {
         baseFare
     } else {
         baseFare + (distanceKm - 2.0) * perKmNext
     }
     
-    val timeFare = durationMin * timeFeePerMin
-    
-    return ((distanceFare + timeFare) * multiplier).toInt()
-}
-
-suspend fun fetchRealRoute(start: GeoPoint, end: GeoPoint): Triple<List<GeoPoint>, Double, Double> {
-    return withContext(Dispatchers.IO) {
-        try {
-            val urlStr = "https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson"
-            val url = URL(urlStr)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 8000
-            connection.readTimeout = 8000
-            
-            val response = connection.inputStream.bufferedReader().use { it.readText() }
-            val json = JSONObject(response)
-            val routes = json.getJSONArray("routes")
-            if (routes.length() > 0) {
-                val route = routes.getJSONObject(0)
-                val distanceKm = route.getDouble("distance") / 1000.0
-                val durationMin = route.getDouble("duration") / 60.0
-                
-                val geometry = route.getJSONObject("geometry")
-                val coords = geometry.getJSONArray("coordinates")
-                val points = mutableListOf<GeoPoint>()
-                for (i in 0 until coords.length()) {
-                    val point = coords.getJSONArray(i)
-                    points.add(GeoPoint(point.getDouble(1), point.getDouble(0)))
-                }
-                Triple(points, distanceKm, durationMin)
-            } else {
-                throw Exception("No routes found")
-            }
-        } catch (e: Exception) {
-            val dist = start.distanceToAsDouble(end) / 1000.0
-            Triple(listOf(start, end), dist, dist * 2.5) 
-        }
-    }
+    // Làm tròn đến hàng nghìn gần nhất
+    return (Math.round(total / 1000.0) * 1000).toInt()
 }
 
 // --- COMPONENTS ---
@@ -535,6 +495,8 @@ fun BookingSummaryScreen(
     onEditPickup: () -> Unit,
     onEditDestination: () -> Unit
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var isBookingSuccessShow by remember { mutableStateOf(false) }
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
 
@@ -557,28 +519,47 @@ fun BookingSummaryScreen(
         } catch(e: Exception) { GeoPoint(10.7798, 106.6990) }
     }
 
-    var routePoints by remember { mutableStateOf(listOf(startPoint, endPoint)) }
+    var routePoints by remember { mutableStateOf<List<GeoPoint>>(listOf(startPoint, endPoint)) }
     var calculatedKm by remember { mutableDoubleStateOf(0.0) }
-    var durationMin by remember { mutableDoubleStateOf(0.0) }
     var isLoadingRoute by remember { mutableStateOf(true) }
 
+    // Gọi API Routing và kiểm tra mạng
     LaunchedEffect(startPoint, endPoint) {
+        if (!NetworkUtils.isNetworkAvailable(context)) {
+            Toast.makeText(context, "Không có kết nối mạng!", Toast.LENGTH_SHORT).show()
+            isLoadingRoute = false
+            return@LaunchedEffect
+        }
+
         isLoadingRoute = true
-        val result = fetchRealRoute(startPoint, endPoint)
-        routePoints = result.first
-        calculatedKm = result.second
-        durationMin = result.third
+        val routingService = RoutingService()
+        val result = routingService.fetchRoute(startPoint, endPoint)
+        
+        if (result != null) {
+            routePoints = result.points
+            calculatedKm = result.distanceKm
+        } else {
+            Toast.makeText(context, "Lỗi lấy lộ trình từ máy chủ!", Toast.LENGTH_SHORT).show()
+        }
         isLoadingRoute = false
     }
 
-    val priceBike = calculateBookingFare(calculatedKm, durationMin)
-    val priceCar = (calculateBookingFare(calculatedKm, durationMin) * 1.8).toInt() 
+    val finalFare = calculateFare(calculatedKm)
+    val priceCar = (finalFare * 1.6).toInt() // Hệ số cho xe ô tô
 
     var selectedServiceName by remember { mutableStateOf(if(vehicleType == "car") "CarzCar" else "CarzBike") }
-    var selectedServicePrice by remember { mutableIntStateOf(if(vehicleType == "car") priceCar else priceBike) }
+    var currentPrice by remember { mutableIntStateOf(if(vehicleType == "car") priceCar else finalFare) }
 
-    LaunchedEffect(calculatedKm, durationMin, selectedServiceName) {
-        selectedServicePrice = if (selectedServiceName == "CarzBike") priceBike else priceCar
+    LaunchedEffect(calculatedKm, selectedServiceName) {
+        currentPrice = if (selectedServiceName == "CarzBike") finalFare else (finalFare * 1.6).toInt()
+    }
+
+    if (isBookingSuccessShow) {
+        LaunchedEffect(Unit) {
+            delay(4000)
+            isBookingSuccessShow = false
+            onBookingDone()
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -622,6 +603,7 @@ fun BookingSummaryScreen(
                 }
             },
             update = { map ->
+                // Cập nhật Polyline khi routePoints thay đổi
                 map.overlays.filterIsInstance<Polyline>().forEach { it.setPoints(routePoints) }
                 map.invalidate()
             },
@@ -678,7 +660,7 @@ fun BookingSummaryScreen(
                     Spacer(modifier = Modifier.height(4.dp))
                     val distDisplay = if (calculatedKm < 1.0) "${(calculatedKm * 1000).toInt()} m" else "${String.format(Locale.getDefault(), "%.1f", calculatedKm)} km"
                     Text(
-                        "Lộ trình: $distDisplay (~${durationMin.toInt()} phút)",
+                        "Lộ trình thực tế: $distDisplay",
                         fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold
                     )
                 }
@@ -696,7 +678,7 @@ fun BookingSummaryScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Column(modifier = Modifier.height(130.dp).verticalScroll(rememberScrollState())) {
-                    ServiceOptionItem("CarzBike (Tiết kiệm)", priceBike, selectedServiceName == "CarzBike", Icons.Default.TwoWheeler) {
+                    ServiceOptionItem("CarzBike (Tiết kiệm)", finalFare, selectedServiceName == "CarzBike", Icons.Default.TwoWheeler) {
                         selectedServiceName = "CarzBike"
                     }
                     ServiceOptionItem("CarzCar (Thoải mái)", priceCar, selectedServiceName == "CarzCar", Icons.Default.DirectionsCar) {
@@ -710,12 +692,12 @@ fun BookingSummaryScreen(
                     onClick = { isBookingSuccessShow = true },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = CarzBlue, contentColor = Color.White),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = !isLoadingRoute
                 ) {
                     if (isLoadingRoute) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
                     } else {
-                        val currentPrice = if(selectedServiceName == "CarzBike") priceBike else priceCar
                         Text("Đặt $selectedServiceName - ${String.format(Locale.getDefault(), "%,d", currentPrice)}đ", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                 }

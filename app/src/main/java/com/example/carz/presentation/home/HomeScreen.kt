@@ -150,26 +150,26 @@ fun HomeHeader(name: String, avatarUrl: String?, timeInfo: TimeBasedInfo) {
 @Composable
 fun QuickHistoryChip(name: String, onClick: () -> Unit) {
     Surface(
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(20.dp),
         color = Color(0xFFF0F7FB),
         modifier = Modifier.clickable { onClick() }
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Default.LocationOn,
                 contentDescription = null,
-                tint = CarzBlue,
-                modifier = Modifier.size(15.dp)
+                tint = Color(0xFF2196F3),
+                modifier = Modifier.size(16.dp)
             )
-            Spacer(modifier = Modifier.width(5.dp))
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = name,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                color = CarzTextMain,
+                color = Color.Black,
                 maxLines = 1
             )
         }
@@ -187,41 +187,59 @@ fun SearchSection(
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
             .shadow(10.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black.copy(alpha = 0.05f)),
-        shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Thanh tìm kiếm chính
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { onSearchClick() },
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Icon yellow with heart pattern
+                // Biểu tượng location màu vàng có hình tim (giống ảnh)
                 Surface(
                     color = Color(0xFFFFD54F),
                     shape = CircleShape,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(30.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(Icons.Default.Favorite, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                     }
                 }
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(text = "Bạn muốn đi tới đâu?", color = CarzTextMain.copy(alpha = 0.8f), fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.weight(1f))
-                Surface(color = Color(0xFFF0F7FB), shape = RoundedCornerShape(12.dp)) {
-                    Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Group, contentDescription = null, modifier = Modifier.size(15.dp), tint = CarzBlue)
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "Bạn muốn đi tới đâu?",
+                    color = Color.Black,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // Nút Đặt hộ tông màu xanh Carz
+                Surface(
+                    color = Color(0xFFF0F7FB),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Group, contentDescription = null, modifier = Modifier.size(18.dp), tint = CarzBlue)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Đặt hộ", fontSize = 12.sp, color = CarzBlue, fontWeight = FontWeight.Black)
+                        Text("Đặt hộ", fontSize = 12.sp, color = CarzBlue, fontWeight = FontWeight.Bold)
                     }
                 }
             }
             
             if (history.isNotEmpty()) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), thickness = 0.5.dp, color = Color(0xFFEEEEEE))
+                Spacer(modifier = Modifier.height(14.dp))
+                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF5F5F5)))
+                Spacer(modifier = Modifier.height(14.dp))
+                
+                // Lịch sử địa điểm dạng hàng cuộn ngang (giống ảnh yêu cầu)
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 2.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(history) { item ->
                         QuickHistoryChip(
@@ -266,7 +284,7 @@ fun PromotionSection() {
 
         PromotionRow(
             title = "Food Deal Discount",
-            items = listOf(
+            promotionItemsList = listOf(
                 PromotionItem("Combo Gà Rán Giòn Rúm", "4.8", "Giảm 15k", R.drawable.food_deal_discount1),
                 PromotionItem("Pizza Gấp Đôi Phô Mai", "4.7", "Freeship", R.drawable.food_deal_discount2),
                 PromotionItem("Cơm Tấm Sườn Bì Chả", "4.9", "Mua 1 Tặng 1", R.drawable.food_deal_discount3)
@@ -275,7 +293,7 @@ fun PromotionSection() {
 
         PromotionRow(
             title = "Drink Deal Discount",
-            items = listOf(
+            promotionItemsList = listOf(
                 PromotionItem("Trà Sữa Khoai Môn Kem Cheese", "4.9", "Ưu đãi hot", R.drawable.drink_deal_discount1),
                 PromotionItem("Cà Phê Muối Đậm Vị", "4.6", "Giảm 30%", R.drawable.drink_deal_discount2),
                 PromotionItem("Trà Đào Đột Phá Năng Lượng", "4.8", "Đồng giá 19k", R.drawable.drink_deal_discount3)
@@ -284,7 +302,7 @@ fun PromotionSection() {
 
         PromotionRow(
             title = "Car Booking Discount",
-            items = listOf(
+            promotionItemsList = listOf(
                 PromotionItem("Giảm ngay 20k đặt xe", "5.0", "Hôm nay", R.drawable.car_booking_discount1),
                 PromotionItem("Đường xa không lo giá chát", "4.9", "Đặc quyền", R.drawable.get_start_goc),
                 PromotionItem("Trải nghiệm Carz 5 sao", "4.8", "Mã: CARZNEW", R.drawable.get_start_goc)
@@ -294,7 +312,7 @@ fun PromotionSection() {
 }
 
 @Composable
-fun PromotionRow(title: String, items: List<PromotionItem>) {
+fun PromotionRow(title: String, promotionItemsList: List<PromotionItem>) {
     Column(modifier = Modifier.padding(bottom = 16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
@@ -308,7 +326,7 @@ fun PromotionRow(title: String, items: List<PromotionItem>) {
             contentPadding = PaddingValues(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(items) { item: PromotionItem ->
+            items(promotionItemsList) { item ->
                 PromotionCard(item.title, item.rating, item.time, item.imageRes)
             }
         }
