@@ -67,12 +67,12 @@ fun getCustomMarkerIcon(context: Context, resId: Int, sizeDp: Int = 32): Drawabl
     val drawable = ContextCompat.getDrawable(context, resId) ?: return null
     val density = context.resources.displayMetrics.density
     val sizePx = (sizeDp * density).toInt()
-    
+
     val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     drawable.setBounds(0, 0, canvas.width, canvas.height)
     drawable.draw(canvas)
-    
+
     return BitmapDrawable(context.resources, bitmap)
 }
 
@@ -180,7 +180,7 @@ fun SearchDestinationScreen(
     var destinationText by remember { mutableStateOf("") }
     var showGPSDialog by remember { mutableStateOf(false) }
     var currentPickupCoords by remember { mutableStateOf("10.8456,106.7533") }
-    
+
     var showDeleteConfirm by remember { mutableStateOf<SearchHistory?>(null) }
 
     if (showGPSDialog) {
@@ -196,26 +196,26 @@ fun SearchDestinationScreen(
                             try {
                                 fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                                     .addOnSuccessListener { location ->
-                                    if (location != null) {
-                                        currentPickupCoords = "${location.latitude},${location.longitude}"
-                                        val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
-                                        if (!addresses.isNullOrEmpty()) {
-                                            val addr = addresses[0]
-                                            val houseNumber = addr.subThoroughfare ?: ""
-                                            val street = addr.thoroughfare ?: ""
-                                            val district = addr.subAdminArea ?: ""
-                                            val city = addr.locality ?: addr.adminArea ?: ""
-                                            
-                                            val components = mutableListOf<String>()
-                                            if (houseNumber.isNotEmpty()) components.add(houseNumber)
-                                            if (street.isNotEmpty()) components.add(street)
-                                            if (district.isNotEmpty()) components.add(district)
-                                            if (city.isNotEmpty()) components.add(city)
-                                            
-                                            startLocationText = components.joinToString(", ")
+                                        if (location != null) {
+                                            currentPickupCoords = "${location.latitude},${location.longitude}"
+                                            val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                                            if (!addresses.isNullOrEmpty()) {
+                                                val addr = addresses[0]
+                                                val houseNumber = addr.subThoroughfare ?: ""
+                                                val street = addr.thoroughfare ?: ""
+                                                val district = addr.subAdminArea ?: ""
+                                                val city = addr.locality ?: addr.adminArea ?: ""
+
+                                                val components = mutableListOf<String>()
+                                                if (houseNumber.isNotEmpty()) components.add(houseNumber)
+                                                if (street.isNotEmpty()) components.add(street)
+                                                if (district.isNotEmpty()) components.add(district)
+                                                if (city.isNotEmpty()) components.add(city)
+
+                                                startLocationText = components.joinToString(", ")
+                                            }
                                         }
                                     }
-                                }
                             } catch (e: SecurityException) {
                                 Toast.makeText(context, "Vui lòng cấp quyền vị trí", Toast.LENGTH_SHORT).show()
                             }
@@ -418,17 +418,17 @@ fun ConfirmPickupScreen(
                                                 val street = addr.thoroughfare ?: ""
                                                 val district = addr.subAdminArea ?: ""
                                                 val city = addr.locality ?: addr.adminArea ?: ""
-                                                
+
                                                 val components = mutableListOf<String>()
                                                 if (houseNumber.isNotEmpty()) components.add(houseNumber)
                                                 if (street.isNotEmpty()) components.add(street)
                                                 if (district.isNotEmpty()) components.add(district)
                                                 if (city.isNotEmpty()) components.add(city)
-                                                
+
                                                 val formatted = components.joinToString(", ")
                                                 centerAddress = formatted
                                                 textInputPickup = formatted
-                                                
+
                                                 mapViewInstance?.controller?.animateTo(GeoPoint(currentLat, currentLon))
                                             }
                                         }
@@ -618,7 +618,7 @@ fun BookingSummaryScreen(
             GeoPoint(coords[0].toDouble(), coords[1].toDouble())
         } catch(e: Exception) { GeoPoint(10.8456, 106.7533) }
     }
-    
+
     val endPoint = remember {
         try {
             val coordStr = if (pickupParts.size > 3) pickupParts[3] else "10.7798,106.6990"
@@ -641,7 +641,7 @@ fun BookingSummaryScreen(
         isLoadingRoute = true
         val routingService = RoutingService()
         val result = routingService.fetchRoute(startPoint, endPoint)
-        
+
         if (result != null) {
             routePoints = result.points
             calculatedKm = result.distanceKm
@@ -650,7 +650,7 @@ fun BookingSummaryScreen(
     }
 
     val finalFare = calculateFare(calculatedKm)
-    
+
     val priceBike = finalFare
     val priceBikePlus = (finalFare * 1.3).toInt()
     val priceCar = (finalFare * 1.6).toInt()

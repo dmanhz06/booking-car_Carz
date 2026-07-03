@@ -85,8 +85,19 @@ class MainActivity : ComponentActivity() {
                     "search_destination_edit" -> SearchDestinationScreen(
                         vehicleType = targetVehicleType,
                         onDestinationConfirmed = { destination ->
+                            // destination format: pickupCoords|pickupLabel|destLabel|destCoords|destPlaceName
                             selectedDestinationAddress = destination
-                            // Sau khi sửa điểm đến từ Summary, quay lại Summary luôn
+                            
+                            val newParts = destination.split("|")
+                            val oldParts = selectedPickupAddress.split("|")
+                            
+                            if (newParts.size >= 4 && oldParts.size >= 2) {
+                                // Cập nhật lại selectedPickupAddress: giữ pickup (old), thay dest (new)
+                                // Format pickup: pickupCoords|pickupLabel|destLabel|destCoords|destPlaceName
+                                val placeName = if (newParts.size > 4) newParts[4] else ""
+                                selectedPickupAddress = "${oldParts[0]}|${oldParts[1]}|${newParts[2]}|${newParts[3]}|$placeName"
+                            }
+
                             currentScreen = "booking_summary"
                         },
                         onBack = { currentScreen = "booking_summary" }
