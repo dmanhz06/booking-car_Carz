@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.location.Geocoder
 import android.widget.Toast
 import androidx.compose.animation.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -28,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.toColorInt
+import com.example.carz.R
 import com.example.carz.data.SearchHistory
 import com.example.carz.data.SearchHistoryDatabase
 import com.example.carz.utils.NetworkUtils
@@ -327,6 +330,47 @@ fun ConfirmPickupScreen(
         } else null
     }
 
+    var showConfirmGPSDialog by remember { mutableStateOf(false) }
+
+    if (showConfirmGPSDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmGPSDialog = false },
+            title = { Text("Lấy vị trí hiện tại", fontWeight = FontWeight.Bold) },
+            text = { Text("Bạn có muốn lấy vị trí chính xác hiện tại?") },
+            confirmButton = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(containerColor = CarzBlue, contentColor = Color.White),
+                    onClick = {
+                        coroutineScope.launch {
+                            try {
+                                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                                    .addOnSuccessListener { location ->
+                                        if (location != null) {
+                                            currentLat = location.latitude
+                                            currentLon = location.longitude
+                                            val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                                            if (!addresses.isNullOrEmpty()) {
+                                                val addr = addresses[0].getAddressLine(0) ?: ""
+                                                centerAddress = addr
+                                                textInputPickup = addr
+                                            }
+                                            mapViewInstance?.controller?.animateTo(GeoPoint(currentLat, currentLon))
+                                        }
+                                    }
+                            } catch (e: SecurityException) {
+                                Toast.makeText(context, "Vui lòng cấp quyền vị trí", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        showConfirmGPSDialog = false
+                    }
+                ) { Text("Xác nhận") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmGPSDialog = false }) { Text("Hủy", color = Color.Gray) }
+            }
+        )
+    }
+
     // Tự động lấy vị trí thực khi vào màn hình
     LaunchedEffect(Unit) {
         try {
@@ -424,28 +468,7 @@ fun ConfirmPickupScreen(
                     onValueChange = { textInputPickup = it },
                     placeholder = { Text("Nhập địa chỉ điểm đón chính xác...") },
                     leadingIcon = {
-                        IconButton(onClick = {
-                            coroutineScope.launch {
-                                try {
-                                    fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
-                                        .addOnSuccessListener { location ->
-                                            if (location != null) {
-                                                currentLat = location.latitude
-                                                currentLon = location.longitude
-                                                val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
-                                                if (!addresses.isNullOrEmpty()) {
-                                                    val addr = addresses[0].getAddressLine(0) ?: ""
-                                                    centerAddress = addr
-                                                    textInputPickup = addr
-                                                }
-                                                mapViewInstance?.controller?.animateTo(GeoPoint(currentLat, currentLon))
-                                            }
-                                        }
-                                } catch (e: SecurityException) {
-                                    Toast.makeText(context, "Vui lòng cấp quyền vị trí", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        }) {
+                        IconButton(onClick = { showConfirmGPSDialog = true }) {
                             Icon(Icons.Default.MyLocation, contentDescription = "Lấy vị trí chính xác hiện tại", tint = CarzBlue)
                         }
                     },
@@ -667,7 +690,11 @@ fun BookingSummaryScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().clickable { onEditPickup() }
                 ) {
-                    Icon(Icons.Default.RadioButtonChecked, contentDescription = null, tint = Color.Green, modifier = Modifier.size(14.dp))
+                    Image(
+                        painter = painterResource(id = R.drawable.diem_don),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text("Đón: $pickupLabel", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
@@ -676,7 +703,11 @@ fun BookingSummaryScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().clickable { onEditDestination() }
                 ) {
-                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.Red, modifier = Modifier.size(14.dp))
+                    Image(
+                        painter = painterResource(id = R.drawable.diem_den),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text("Đến: $destLabel", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
                 }
