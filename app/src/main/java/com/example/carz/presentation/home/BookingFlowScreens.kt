@@ -1,6 +1,11 @@
 package com.example.carz.presentation.home
 
 import android.annotation.SuppressLint
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.location.Geocoder
 import android.widget.Toast
 import androidx.compose.animation.*
@@ -20,6 +25,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -29,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.toColorInt
 import com.example.carz.R
 import com.example.carz.data.SearchHistory
@@ -53,23 +61,45 @@ import java.util.Locale
 // --- UTILITIES & LOGIC ---
 
 /**
- * Tính giá cước theo yêu cầu mới:
- * 2km đầu: 15.000 VNĐ.
- * Mỗi km tiếp theo: 8.000 VNĐ.
- * Làm tròn kết quả đến hàng nghìn gần nhất.
+ * Tạo Marker Icon từ Resource Image với kích thước tùy chỉnh (dp)
  */
+fun getCustomMarkerIcon(context: Context, resId: Int, sizeDp: Int = 32): Drawable? {
+    val drawable = ContextCompat.getDrawable(context, resId) ?: return null
+    val density = context.resources.displayMetrics.density
+    val sizePx = (sizeDp * density).toInt()
+    
+    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    drawable.setBounds(0, 0, canvas.width, canvas.height)
+    drawable.draw(canvas)
+    
+    return BitmapDrawable(context.resources, bitmap)
+}
+
 fun calculateFare(distanceKm: Double): Int {
     val baseFare = 15000.0
     val perKmNext = 8000.0
-    
-    val total = if (distanceKm <= 2.0) {
-        baseFare
-    } else {
-        baseFare + (distanceKm - 2.0) * perKmNext
-    }
-    
-    // Làm tròn đến hàng nghìn gần nhất
+    val total = if (distanceKm <= 2.0) baseFare else baseFare + (distanceKm - 2.0) * perKmNext
     return (Math.round(total / 1000.0) * 1000).toInt()
+}
+
+/**
+ * Rút gọn địa chỉ: Lấy số nhà và tên đường.
+ */
+fun formatShortAddress(fullAddress: String): String {
+    if (fullAddress.isBlank()) return ""
+    val parts = fullAddress.split(",")
+    return if (parts.isNotEmpty()) {
+        val streetPart = parts[0].trim()
+        // Nếu phần đầu tiên quá ngắn (ví dụ chỉ là số nhà), lấy thêm phần tiếp theo
+        if (streetPart.length < 5 && parts.size > 1) {
+            "$streetPart, ${parts[1].trim()}"
+        } else {
+            streetPart
+        }
+    } else {
+        fullAddress
+    }
 }
 
 // --- COMPONENTS ---
@@ -97,31 +127,33 @@ fun ServiceOptionItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(36.dp)
                         .background(if (isSelected) CarzBlue else Color(0xFFE0E0E0), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(imageVector = icon, contentDescription = null, tint = if (isSelected) Color.White else Color.Gray, modifier = Modifier.size(22.dp))
+                    Icon(imageVector = icon, contentDescription = null, tint = if (isSelected) Color.White else Color.Gray, modifier = Modifier.size(20.dp))
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = name,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    fontSize = 14.sp,
-                    color = Color(0xFF212121)
+                    fontSize = 13.sp,
+                    color = Color(0xFF212121),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             Text(
                 text = "${String.format(Locale.getDefault(), "%,d", price)}đ",
                 fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 color = Color(0xFF212121)
             )
         }
@@ -155,7 +187,7 @@ fun SearchDestinationScreen(
         AlertDialog(
             onDismissRequest = { showGPSDialog = false },
             title = { Text("Định vị vị trí hiện tại", fontWeight = FontWeight.Bold) },
-            text = { Text("Bạn có muốn chọn vị trí GPS hiện tại làm điểm đón không?") },
+            text = { Text("Bạn có muốn lấy địa chỉ vị trí hiện tại không?") },
             confirmButton = {
                 Button(
                     colors = ButtonDefaults.buttonColors(containerColor = CarzBlue, contentColor = Color.White),
@@ -168,7 +200,19 @@ fun SearchDestinationScreen(
                                         currentPickupCoords = "${location.latitude},${location.longitude}"
                                         val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
                                         if (!addresses.isNullOrEmpty()) {
-                                            startLocationText = addresses[0].getAddressLine(0) ?: "Vị trí hiện tại"
+                                            val addr = addresses[0]
+                                            val houseNumber = addr.subThoroughfare ?: ""
+                                            val street = addr.thoroughfare ?: ""
+                                            val district = addr.subAdminArea ?: ""
+                                            val city = addr.locality ?: addr.adminArea ?: ""
+                                            
+                                            val components = mutableListOf<String>()
+                                            if (houseNumber.isNotEmpty()) components.add(houseNumber)
+                                            if (street.isNotEmpty()) components.add(street)
+                                            if (district.isNotEmpty()) components.add(district)
+                                            if (city.isNotEmpty()) components.add(city)
+                                            
+                                            startLocationText = components.joinToString(", ")
                                         }
                                     }
                                 }
@@ -277,7 +321,6 @@ fun SearchDestinationScreen(
                     Text("Chưa có lịch sử tìm kiếm", fontSize = 13.sp, color = Color.LightGray, modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp))
                 }
                 history.forEach { item ->
-                    // Sử dụng component SwipeableHistoryItem từ HomeComponents.kt đã gỡ bỏ trùng lặp
                     SwipeableHistoryItem(
                         item = item,
                         onPin = {
@@ -332,6 +375,25 @@ fun ConfirmPickupScreen(
 
     var showConfirmGPSDialog by remember { mutableStateOf(false) }
 
+    fun triggerSearch(address: String) {
+        if (address.isNotBlank()) {
+            try {
+                val addresses = geocoder.getFromLocationName(address, 1)
+                if (!addresses.isNullOrEmpty()) {
+                    val addr = addresses[0]
+                    currentLat = addr.latitude
+                    currentLon = addr.longitude
+                    centerAddress = addr.getAddressLine(0) ?: address
+                    mapViewInstance?.controller?.animateTo(GeoPoint(currentLat, currentLon))
+                } else {
+                    Toast.makeText(context, "Không tìm thấy địa chỉ", Toast.LENGTH_SHORT).show()
+                }
+            } catch(e: Exception) {
+                Toast.makeText(context, "Lỗi tìm kiếm", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     if (showConfirmGPSDialog) {
         AlertDialog(
             onDismissRequest = { showConfirmGPSDialog = false },
@@ -350,11 +412,25 @@ fun ConfirmPickupScreen(
                                             currentLon = location.longitude
                                             val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
                                             if (!addresses.isNullOrEmpty()) {
-                                                val addr = addresses[0].getAddressLine(0) ?: ""
-                                                centerAddress = addr
-                                                textInputPickup = addr
+                                                val addr = addresses[0]
+                                                // Định dạng: Số đường, tên đường, tỉnh, thành phố
+                                                val houseNumber = addr.subThoroughfare ?: ""
+                                                val street = addr.thoroughfare ?: ""
+                                                val district = addr.subAdminArea ?: ""
+                                                val city = addr.locality ?: addr.adminArea ?: ""
+                                                
+                                                val components = mutableListOf<String>()
+                                                if (houseNumber.isNotEmpty()) components.add(houseNumber)
+                                                if (street.isNotEmpty()) components.add(street)
+                                                if (district.isNotEmpty()) components.add(district)
+                                                if (city.isNotEmpty()) components.add(city)
+                                                
+                                                val formatted = components.joinToString(", ")
+                                                centerAddress = formatted
+                                                textInputPickup = formatted
+                                                
+                                                mapViewInstance?.controller?.animateTo(GeoPoint(currentLat, currentLon))
                                             }
-                                            mapViewInstance?.controller?.animateTo(GeoPoint(currentLat, currentLon))
                                         }
                                     }
                             } catch (e: SecurityException) {
@@ -371,7 +447,6 @@ fun ConfirmPickupScreen(
         )
     }
 
-    // Tự động lấy vị trí thực khi vào màn hình
     LaunchedEffect(Unit) {
         try {
             fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
@@ -403,8 +478,9 @@ fun ConfirmPickupScreen(
                         val marker = Marker(this).apply {
                             position = it
                             title = "ĐIỂM ĐẾN"
-                            snippet = extractedDestText
+                            snippet = formatShortAddress(extractedDestText)
                             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                            icon = getCustomMarkerIcon(ctx, R.drawable.diem_den, 36)
                         }
                         overlays.add(marker)
                         marker.showInfoWindow()
@@ -438,31 +514,33 @@ fun ConfirmPickupScreen(
             modifier = Modifier.padding(top = 40.dp, start = 16.dp).background(Color.White, CircleShape)
         ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
 
-        // Nhãn ĐIỂM ĐÓN cố định ở giữa
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Surface(
-                    color = Color.Black,
-                    shape = RoundedCornerShape(4.dp),
+                    color = Color.Black.copy(alpha = 0.8f),
+                    shape = RoundedCornerShape(6.dp),
                     modifier = Modifier.padding(bottom = 4.dp)
                 ) {
-                    Text("ĐIỂM ĐÓN", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                    Text("ĐIỂM ĐÓN", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
                 }
-                Icon(Icons.Default.MyLocation, contentDescription = null, tint = CarzBlue, modifier = Modifier.size(40.dp).offset(y = (-4).dp))
+                Image(
+                    painter = painterResource(id = R.drawable.diem_don),
+                    contentDescription = null,
+                    modifier = Modifier.size(36.dp).offset(y = (-4).dp)
+                )
             }
         }
 
         Card(
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
-            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(8.dp)
+            elevation = CardDefaults.cardElevation(10.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(text = "Xác nhận điểm đón chính xác", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Spacer(modifier = Modifier.height(10.dp))
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(text = "Xác nhận điểm đón chính xác", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Ô nhập địa chỉ điểm đón chính xác với icon lấy vị trí hiện tại
                 OutlinedTextField(
                     value = textInputPickup,
                     onValueChange = { textInputPickup = it },
@@ -473,44 +551,27 @@ fun ConfirmPickupScreen(
                         }
                     },
                     trailingIcon = {
-                        IconButton(onClick = {
-                            if (textInputPickup.isNotBlank()) {
-                                try {
-                                    val addresses = geocoder.getFromLocationName(textInputPickup, 1)
-                                    if (!addresses.isNullOrEmpty()) {
-                                        val addr = addresses[0]
-                                        currentLat = addr.latitude
-                                        currentLon = addr.longitude
-                                        centerAddress = addr.getAddressLine(0) ?: textInputPickup
-                                        mapViewInstance?.controller?.animateTo(GeoPoint(currentLat, currentLon))
-                                    } else {
-                                        Toast.makeText(context, "Không tìm thấy địa chỉ", Toast.LENGTH_SHORT).show()
-                                    }
-                                } catch(e: Exception) {
-                                    Toast.makeText(context, "Lỗi tìm kiếm", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        }) {
+                        IconButton(onClick = { triggerSearch(textInputPickup) }) {
                             Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray)
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(14.dp),
                     singleLine = true
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Row(
-                    modifier = Modifier.fillMaxWidth().background(CarzLightBlue, RoundedCornerShape(8.dp)).padding(10.dp),
+                    modifier = Modifier.fillMaxWidth().background(Color(0xFFF1F8FF), RoundedCornerShape(10.dp)).padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Storefront, contentDescription = null, tint = CarzBlue)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = centerAddress, fontSize = 13.sp, color = Color.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Icon(Icons.Default.Storefront, contentDescription = null, tint = CarzBlue, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(text = centerAddress, fontSize = 14.sp, color = Color.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
                     onClick = {
@@ -520,11 +581,11 @@ fun ConfirmPickupScreen(
                         val destCoordStr = if (destCoords != null) "${destCoords.latitude},${destCoords.longitude}" else "10.7798,106.6990"
                         onPickupConfirmed("$currentLat,$currentLon|$cleanPickupLabel|$cleanDestLabel|$destCoordStr")
                     },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = CarzBlue, contentColor = Color.White),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text("Xác nhận điểm đón này", fontWeight = FontWeight.Bold)
+                    Text("Xác nhận điểm đón này", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
         }
@@ -570,7 +631,6 @@ fun BookingSummaryScreen(
     var calculatedKm by remember { mutableDoubleStateOf(0.0) }
     var isLoadingRoute by remember { mutableStateOf(true) }
 
-    // Gọi API Routing và kiểm tra mạng
     LaunchedEffect(startPoint, endPoint) {
         if (!NetworkUtils.isNetworkAvailable(context)) {
             Toast.makeText(context, "Không có kết nối mạng!", Toast.LENGTH_SHORT).show()
@@ -585,20 +645,28 @@ fun BookingSummaryScreen(
         if (result != null) {
             routePoints = result.points
             calculatedKm = result.distanceKm
-        } else {
-            Toast.makeText(context, "Lỗi lấy lộ trình từ máy chủ!", Toast.LENGTH_SHORT).show()
         }
         isLoadingRoute = false
     }
 
     val finalFare = calculateFare(calculatedKm)
-    val priceCar = (finalFare * 1.6).toInt() // Hệ số cho xe ô tô
+    
+    val priceBike = finalFare
+    val priceBikePlus = (finalFare * 1.3).toInt()
+    val priceCar = (finalFare * 1.6).toInt()
+    val priceCarPlus = (finalFare * 2.0).toInt()
 
     var selectedServiceName by remember { mutableStateOf(if(vehicleType == "car") "CarzCar" else "CarzBike") }
-    var currentPrice by remember { mutableIntStateOf(if(vehicleType == "car") priceCar else finalFare) }
+    var currentPrice by remember { mutableIntStateOf(if(vehicleType == "car") priceCar else priceBike) }
 
     LaunchedEffect(calculatedKm, selectedServiceName) {
-        currentPrice = if (selectedServiceName == "CarzBike") finalFare else (finalFare * 1.6).toInt()
+        currentPrice = when (selectedServiceName) {
+            "CarzBike" -> priceBike
+            "CarzBike (Plus)" -> priceBikePlus
+            "CarzCar" -> priceCar
+            "CarzCar (Plus)" -> priceCarPlus
+            else -> priceBike
+        }
     }
 
     if (isBookingSuccessShow) {
@@ -620,14 +688,16 @@ fun BookingSummaryScreen(
                     val markerStart = Marker(this).apply {
                         position = startPoint
                         title = "ĐIỂM ĐÓN"
-                        snippet = pickupLabel
+                        snippet = formatShortAddress(pickupLabel)
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        icon = getCustomMarkerIcon(ctx, R.drawable.diem_don, 36)
                     }
                     val markerEnd = Marker(this).apply {
                         position = endPoint
                         title = "ĐIỂM ĐẾN"
-                        snippet = destLabel
+                        snippet = formatShortAddress(destLabel)
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        icon = getCustomMarkerIcon(ctx, R.drawable.diem_den, 36)
                     }
                     overlays.add(markerStart)
                     overlays.add(markerEnd)
@@ -650,7 +720,6 @@ fun BookingSummaryScreen(
                 }
             },
             update = { map ->
-                // Cập nhật Polyline khi routePoints thay đổi
                 map.overlays.filterIsInstance<Polyline>().forEach { it.setPoints(routePoints) }
                 map.invalidate()
             },
@@ -679,65 +748,130 @@ fun BookingSummaryScreen(
             }
         }
 
+        // Khung thông tin điểm đi/đến thu gọn lại chiều dài (width) và gọn hơn
         Card(
-            modifier = Modifier.fillMaxWidth().padding(top = 100.dp, start = 14.dp, end = 14.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(4.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 90.dp) // Gộp padding nếu muốn
+                .shadow(10.dp, RoundedCornerShape(20.dp))
+                .animateContentSize(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.96f))
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().clickable { onEditPickup() }
+            // Giảm padding tổng thể của Box từ 12.dp xuống 8.dp
+            Box(modifier = Modifier.padding(8.dp)) {
+
+                // Trang trí: Đường nối giữa 2 điểm (Giảm padding top/bottom để sát hơn)
+                Column(
+                    modifier = Modifier.padding(start = 10.dp, top = 26.dp, bottom = 26.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.diem_don),
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text("Đón: $pickupLabel", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    repeat(3) {
+                        Box(modifier = Modifier.size(2.dp).background(Color.LightGray, CircleShape))
+                        Spacer(modifier = Modifier.height(2.dp)) // Giảm khoảng cách giữa các chấm
+                    }
                 }
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().clickable { onEditDestination() }
+
+                Column {
+                    // Hàng Đón - Giảm padding vertical
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onEditPickup() }
+                            .padding(horizontal = 4.dp, vertical = 2.dp) // Giảm vertical padding
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.diem_don),
+                            contentDescription = null,
+                            modifier = Modifier.size(21.dp) // Giảm nhẹ size icon
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text("Đón", fontSize = 13.sp, color = Color.Gray)
+                            Text(pickupLabel, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.Black)
+                        }
+                    }
+
+                    // Xóa Spacer(height = 1.dp) hoặc để 0.dp để sát hơn nữa
+
+                    // Hàng Đến - Giảm padding vertical
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onEditDestination() }
+                            .padding(horizontal = 4.dp, vertical = 2.dp) // Giảm vertical padding
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.diem_den),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text("Đến", fontSize = 13.sp, color = CarzBlue, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = formatShortAddress(destLabel),
+                                fontSize = 14.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Phần hiển thị KM - Đưa vào sát lề hơn hoặc giảm padding cha
+            if (!isLoadingRoute) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(end = 6.dp, bottom = 6.dp), // Giảm padding bottom tổng thể
+                    contentAlignment = Alignment.CenterEnd
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.diem_den),
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text("Đến: $destLabel", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
-                }
-                if (!isLoadingRoute) {
-                    Spacer(modifier = Modifier.height(4.dp))
                     val distDisplay = if (calculatedKm < 1.0) "${(calculatedKm * 1000).toInt()} m" else "${String.format(Locale.getDefault(), "%.1f", calculatedKm)} km"
-                    Text(
-                        "Lộ trình thực tế: $distDisplay",
-                        fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold
-                    )
+                    Surface(
+                        color = Color(0xFFE3F2FD),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            distDisplay,
+                            fontSize = 10.sp,
+                            color = CarzBlue,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
+                        )
+                    }
                 }
             }
         }
-
         Card(
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
-            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(12.dp)
+            elevation = CardDefaults.cardElevation(16.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Dịch vụ Carz", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Spacer(modifier = Modifier.height(8.dp))
+                Text("Dịch vụ Carz", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Color.Black)
+                Spacer(modifier = Modifier.height(10.dp))
 
-                Column(modifier = Modifier.height(130.dp).verticalScroll(rememberScrollState())) {
-                    ServiceOptionItem("CarzBike (Tiết kiệm)", finalFare, selectedServiceName == "CarzBike", Icons.Default.TwoWheeler) {
+                Column(modifier = Modifier.height(145.dp).verticalScroll(rememberScrollState())) {
+                    ServiceOptionItem("CarzBike (Tiết kiệm)", priceBike, selectedServiceName == "CarzBike", Icons.Default.TwoWheeler) {
                         selectedServiceName = "CarzBike"
                     }
-                    ServiceOptionItem("CarzCar (Thoải mái)", (finalFare * 1.6).toInt(), selectedServiceName == "CarzCar", Icons.Default.DirectionsCar) {
+                    ServiceOptionItem("CarzBike (Plus)", priceBikePlus, selectedServiceName == "CarzBike (Plus)", Icons.Default.TwoWheeler) {
+                        selectedServiceName = "CarzBike (Plus)"
+                    }
+                    ServiceOptionItem("CarzCar (Thoải mái)", priceCar, selectedServiceName == "CarzCar", Icons.Default.DirectionsCar) {
                         selectedServiceName = "CarzCar"
+                    }
+                    ServiceOptionItem("CarzCar (Plus)", priceCarPlus, selectedServiceName == "CarzCar (Plus)", Icons.Default.DirectionsCar) {
+                        selectedServiceName = "CarzCar (Plus)"
                     }
                 }
 
@@ -745,32 +879,31 @@ fun BookingSummaryScreen(
 
                 Button(
                     onClick = { isBookingSuccessShow = true },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = CarzBlue, contentColor = Color.White),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(16.dp),
                     enabled = !isLoadingRoute
                 ) {
                     if (isLoadingRoute) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
                     } else {
-                        val priceToDisplay = if (selectedServiceName == "CarzBike") finalFare else (finalFare * 1.6).toInt()
-                        Text("Đặt $selectedServiceName - ${String.format(Locale.getDefault(), "%,d", priceToDisplay)}đ", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Đặt $selectedServiceName - ${String.format(Locale.getDefault(), "%,d", currentPrice)}đ", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                 }
             }
         }
 
-        AnimatedVisibility(visible = isBookingSuccessShow, enter = fadeIn(), exit = fadeOut()) {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)), contentAlignment = Alignment.Center) {
-                Card(modifier = Modifier.fillMaxWidth(0.85f).padding(16.dp), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                    Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(60.dp))
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("Đã Gửi Yêu Cầu!", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Tài xế Carz đang được kết nối với bạn. Vui lòng giữ liên lạc.", fontSize = 14.sp, color = Color.Gray, textAlign = TextAlign.Center)
+        AnimatedVisibility(visible = isBookingSuccessShow, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.75f)), contentAlignment = Alignment.Center) {
+                Card(modifier = Modifier.fillMaxWidth(0.88f).padding(16.dp), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                    Column(modifier = Modifier.padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(72.dp))
                         Spacer(modifier = Modifier.height(20.dp))
-                        CircularProgressIndicator(color = CarzBlue, strokeWidth = 3.dp, modifier = Modifier.size(28.dp))
+                        Text("Đã Gửi Yêu Cầu!", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text("Tài xế Carz đang được kết nối với bạn. Vui lòng giữ liên lạc.", fontSize = 15.sp, color = Color.Gray, textAlign = TextAlign.Center)
+                        Spacer(modifier = Modifier.height(24.dp))
+                        CircularProgressIndicator(color = CarzBlue, strokeWidth = 3.dp, modifier = Modifier.size(32.dp))
                     }
                 }
             }

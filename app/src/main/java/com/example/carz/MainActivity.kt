@@ -80,7 +80,16 @@ class MainActivity : ComponentActivity() {
                         },
                         onBack = { currentScreen = "confirm_pickup" },
                         onEditPickup = { currentScreen = "confirm_pickup" },
-                        onEditDestination = { currentScreen = "search_destination" }
+                        onEditDestination = { currentScreen = "search_destination_edit" }
+                    )
+                    "search_destination_edit" -> SearchDestinationScreen(
+                        vehicleType = targetVehicleType,
+                        onDestinationConfirmed = { destination ->
+                            selectedDestinationAddress = destination
+                            // Sau khi sửa điểm đến từ Summary, quay lại Summary luôn
+                            currentScreen = "booking_summary"
+                        },
+                        onBack = { currentScreen = "booking_summary" }
                     )
                 }
             }
